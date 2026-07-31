@@ -1,0 +1,8 @@
+# Snapshot de memoria personal: se versiona APARTE, en el repo privado de memoria.
+# Contiene procedencias con datos de proyectos/clientes; NO debe publicarse aquí.
+memory-snapshot/
+
+# Ruido de SO / editores
+.DS_Store
+Thumbs.db
+*.swp
