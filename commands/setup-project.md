@@ -1,12 +1,14 @@
 ---
-description: Genera la configuración inicial del proyecto (.claude/settings.json) activando solo los plugins que su stack necesita
-argument-hint: [plugins extra opcionales, ej. "postman figma"]
+description: Prepara las capacidades del proyecto (activa solo los plugins/agentes que su stack necesita) y define los agentes responsables por rol — agnóstico de proveedor
+argument-hint: '[capacidades/plugins extra opcionales, ej. "postman figma"]'
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, PowerShell
 ---
 
 # Configuración inicial del proyecto
 
-Los plugins de Claude Code están desactivados globalmente para ahorrar tokens; cada proyecto debe activar solo los que necesita vía su `.claude/settings.json` (la precedencia proyecto > global lo permite). Tu tarea es detectar el stack del proyecto actual y generar esa configuración automáticamente.
+Este comando prepara las **capacidades** (agentes/plugins) que el proyecto necesita y, con ellas, la **asignación de roles** de la corrida (arquitecto / aplicación / escritura). El objetivo es que el sistema funcione **con cualquier backend de agentes, sin importar la licencia** — Claude Code es la implementación concreta actual, no un requisito.
+
+**Backend actual (Claude Code):** los plugins están desactivados globalmente para ahorrar tokens; cada proyecto activa solo los que necesita vía su `.claude/settings.json` (la precedencia proyecto > global lo permite). Detecta el stack del proyecto y genera esa configuración automáticamente. Si el entorno usa otro proveedor de agentes, omite los pasos de plugins y solo registra la asignación de roles (ver `references/setup.md`, Paso 1.5, `.orchestrator/agents.json`).
 
 Argumentos del usuario (plugins o hints extra, puede estar vacío): $ARGUMENTS
 
@@ -44,10 +46,15 @@ Si el usuario pasó argumentos, inclúyelos aunque no haya marcadores. Sé conse
 2. Si no existe, crea `.claude/settings.json` con solo el bloque `enabledPlugins` y los plugins detectados en `true`.
 3. No toques `~/.claude/settings.json` global ni pongas plugins en `false` en el proyecto (ya lo están globalmente).
 
-## Paso 4 — Reportar
+## Paso 4 — Asignar agentes por rol (agnóstico de proveedor)
+
+Con las capacidades ya elegidas, registra en `.orchestrator/agents.json` qué agente cumple cada rol de la corrida — **arquitecto, aplicación/ejecución y escritura/documentación** — siguiendo `references/setup.md` (Paso 1.5). Por defecto son los subagentes de Claude Code; si hay otro proveedor, se nombran aquí. Ningún rol queda sin asignar antes de arrancar la Fase 1.
+
+## Paso 5 — Reportar
 
 Muestra al usuario:
 - Stack(s) detectado(s) y la evidencia (archivos encontrados).
-- Plugins activados en el proyecto.
-- Plugins opcionales que NO activaste y por qué (ej. "claude-db disponible si vas a auditar la BD: agrégalo con `/setup-project claude-db`").
-- Recordatorio: reiniciar Claude Code o ejecutar `/reload-plugins` para que apliquen.
+- Capacidades/plugins activados en el proyecto.
+- Agentes asignados por rol (arquitecto / aplicación / escritura).
+- Capacidades opcionales que NO activaste y por qué (ej. "claude-db disponible si vas a auditar la BD: agrégalo con `/setup-project claude-db`").
+- Recordatorio (backend Claude Code): reiniciar Claude Code o ejecutar `/reload-plugins` para que apliquen.

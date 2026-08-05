@@ -2,6 +2,9 @@
 # Contiene procedencias con datos de proyectos/clientes; NO debe publicarse aquí.
 memory-snapshot/
 
+# Comando de empaquetado: uso interno, NO se publica ni viaja en el paquete distribuible.
+commands/pack-skill.md
+
 # Ruido de SO / editores
 .DS_Store
 Thumbs.db

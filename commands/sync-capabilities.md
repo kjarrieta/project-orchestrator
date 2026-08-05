@@ -1,17 +1,21 @@
 ---
 description: Audita plugins nuevos o cambiados y sincroniza el mapa de capacidades (plugin-profiles + orquestador) sin perder lo existente
-argument-hint: [nombre de plugin concreto, opcional]
+argument-hint: "[nombre de capacidad/plugin concreto, opcional]"
 ---
 
 # Sincronizar capacidades del ecosistema
 
-Cuando se instalan plugins nuevos, hay que auditarlos e integrarlos al esquema de
-activación por proyecto y al mapa tarea→capacidad del orquestador, **sin perder lo ya
-logrado con los actuales**. Este comando hace esa sincronización.
+Cuando aparecen **capacidades nuevas** (agentes o plugins), hay que auditarlas e
+integrarlas al esquema de activación por proyecto, al mapa tarea→capacidad y a la
+**asignación de roles** del orquestador (arquitecto / aplicación / escritura), **sin
+perder lo ya logrado**. El mapa es capacidad→rol, **no** está atado a un proveedor: el
+sistema funciona con cualquier backend de agentes, sin importar la licencia. Las fuentes
+de abajo son la **implementación concreta actual (Claude Code)**; con otro proveedor se
+sustituyen por su registro equivalente de agentes/capacidades y el procedimiento no cambia.
 
-Argumentos (plugin concreto a auditar, o vacío = detectar todos): $ARGUMENTS
+Argumentos (capacidad/plugin concreto a auditar, o vacío = detectar todos): $ARGUMENTS
 
-## Fuentes de verdad (en este orden)
+## Fuentes de verdad (backend actual: Claude Code — en este orden)
 
 1. `~/.claude/plugins/installed_plugins.json` — qué está instalado realmente.
 2. `~/.claude/settings.json` → `enabledPlugins` — estado global (debe quedar `false`
@@ -47,6 +51,10 @@ Argumentos (plugin concreto a auditar, o vacío = detectar todos): $ARGUMENTS
    - `references/capabilities.md` del orquestador: agrega la fila al mapa
      tarea→capacidad con quién la usa y en qué modo. No modifiques filas existentes
      salvo para marcar retiros.
+   - Asignación de roles: si la capacidad nueva cambia quién debería cumplir un rol
+     (arquitecto / aplicación / escritura), anótalo como sugerencia; la asignación
+     efectiva vive en `.orchestrator/agents.json` por proyecto (ver `setup.md` Paso 1.5)
+     y no se sobreescribe sin visto bueno.
    - Si el plugin quedó `true` global en `~/.claude/settings.json` tras instalarse,
      proponer pasarlo a `false` global (activación por proyecto), salvo que el
      usuario diga lo contrario.

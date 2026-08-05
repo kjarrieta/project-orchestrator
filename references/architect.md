@@ -89,18 +89,26 @@ reescrituras. Cada cambio deja el sistema funcionando. Coordina con los otros
 agentes: si tu cambio toca el contrato de la BD o de la vista, es dependencia —
 anótala y respeta el orden del plan. Registra todo en la bitácora de aplicación.
 
-## Política fija — patrón de capas de acceso a datos (obligatorio evaluar)
+## Patrón de acceso a datos — se define por proyecto (no lo impongas)
 
-Toda **nueva implementación o refactorización** debe evaluar explícitamente, tanto en
-la **planeación** (Fase 2) como en la **implementación** (Fase 4), el patrón de capas
-**Controller/Livewire → Service → Repository → Model**: punto de entrada delgado que
-inyecta un Service; Service como único punto de entrada a datos que delega SIEMPRE en un
-Repository (prohibido Eloquent estático en `Services/`); Repository como único que toca
-el ORM; Model solo persistencia. Un Controller que inyecta un Repository, o un Service
-que llama modelos estáticos, es un **salto de capa**: no se introduce en código nuevo y,
-si ya existe, se registra como deuda técnica con evidencia `ruta:línea` (no se replica).
-Detalle y guardarraíl en la memoria global `php/architecture.md` ("Patrón de capas
-obligatorio"). Es política global aprobada (2026-08-05), no una preferencia de proyecto.
+La skill **no casa con un único patrón de capas**. El estilo de acceso a datos —p. ej.
+`Controller/Livewire → Service → Repository → Model`, `Controller → Service → Model`
+(sin repositorios), modelos ricos / Active Record, o Actions/CQRS— es una **decisión
+por proyecto**, no un mandato global. En el bootstrap/setup el director **pregunta** qué
+patrón sigue —o desea seguir— el proyecto para **nuevas funcionalidades, actualizaciones
+y refactorizaciones**; si el código ya tiene un patrón dominante, **detéctalo y
+confírmalo** en vez de imponer otro. La elección se registra en la convención del
+proyecto (`.orchestrator/`, ver `setup.md`) y es la que gobierna de ahí en adelante.
+
+Una vez elegido, **ese** patrón es el estándar del proyecto: el código nuevo lo respeta
+y una pieza que lo salta se registra como deuda técnica con evidencia `ruta:línea` (no
+se replica). Si no hay preferencia declarada, **sigue la convención dominante del propio
+código** y no fuerces ninguna.
+
+Sugerencia por defecto para Laravel/Eloquent —**ofrécela, no la exijas**—: la cadena
+`Controller/Livewire → Service → Repository → Model` (Service como único punto de entrada
+a datos, Repository como único que toca el ORM). Su detalle, beneficios y guardarraíl
+están en la memoria `php/architecture.md` como **patrón recomendado, no obligatorio**.
 
 ## Coordinación
 

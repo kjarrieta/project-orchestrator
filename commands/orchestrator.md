@@ -1,6 +1,6 @@
 ---
 description: Ejecuta el Orquestador de Proyecto (12 agentes senior) — flujo completo o una fase concreta
-argument-hint: [auditar|aplicar|nuevo|verificar|estado|setup|cerrar] [alcance opcional]
+argument-hint: "[auditar|aplicar|nuevo|verificar|estado|setup|cerrar] [alcance opcional]"
 ---
 
 # Punto de entrada del Orquestador de Proyecto

@@ -11,6 +11,34 @@ Comprueba si existen los subagentes del orquestador en `.claude/agents/` (proyec
 `~/.claude/agents/` (usuario). Si están y coinciden con la versión de la skill, salta
 la instalación. Si faltan o están desactualizados, instala/actualiza.
 
+## Paso 1.5 — Asignar los agentes responsables por rol (agnóstico de proveedor)
+
+El orquestador coordina **roles**, no un proveedor concreto — así el sistema funciona
+con cualquier backend de agentes, **sin importar la licencia**. Al iniciar la corrida se
+define qué agente cumple cada rol y se registra en `.orchestrator/agents.json`. Los tres
+roles de mayor impacto se nombran explícitamente (los demás briefs siguen el mismo
+esquema):
+
+- **arquitecto** — estructura, contratos y decisiones de diseño (Fase 2).
+- **aplicación / ejecución** — implementa lo aprobado y escribe en el código (Fase 4).
+- **escritura / documentación** — redacta docs y memoria.
+
+Por defecto, cada rol se mapea al subagente de Claude Code que genera el Paso 2
+(**implementación concreta actual**, no un requisito). Si el entorno ofrece agentes de
+otro proveedor, se asignan aquí por nombre y el flujo no cambia:
+
+    // .orchestrator/agents.json
+    {
+      "architect":   "<agente-arquitecto>",
+      "application":  "<agente-de-aplicación>",
+      "writing":      "<agente-de-escritura/documentación>"
+    }
+
+Regla: ningún rol queda sin agente asignado antes de la Fase 1; si falta, el director lo
+pregunta. La asignación es por corrida/proyecto y se puede sobreescribir. La selección de
+**modelo** por defecto (Paso 2) aplica solo cuando el backend es Claude; con otro
+proveedor se ignora y manda la asignación de este paso.
+
 ## Paso 2 — Generar los subagentes (automático)
 
 Por cada brief en `references/` que sea un agente (feedback, architect, robustness,
@@ -61,6 +89,20 @@ Si el proyecto aún no tiene `.claude/settings.json` con `enabledPlugins`, prop�
 ejecutar `/setup-project` (o el bloque equivalente) siguiendo
 `references/capabilities.md`: solo los plugins que el stack y el pedido justifican,
 nunca todos. Igual que los hooks, se propone y se escribe tras el visto bueno.
+
+## Paso 3.6 — Convención de acceso a datos (por proyecto)
+
+El patrón de capas de acceso a datos **no es global**: se decide por proyecto. En el
+primer arranque, el director —con el arquitecto— **detecta** el patrón dominante del
+código y **pregunta** a la persona cuál desea como estándar para nuevas funcionalidades,
+actualizaciones y refactorizaciones. Opciones típicas (no exhaustivas):
+`Controller/Livewire → Service → Repository → Model`; `Controller → Service → Model`;
+modelos ricos / Active Record; Actions/CQRS; o "seguir lo que ya hay". Registra la
+elección en `.orchestrator/conventions.md` (o el `state.json` del proyecto) para que
+todos los agentes la respeten sin volver a preguntar. Si la persona no expresa
+preferencia, se adopta la convención dominante detectada; **nunca se impone una nueva**.
+No confundir con las políticas realmente globales (documentación de API, propagación de
+obligatoriedad de la BD, manejo de datos sensibles en URL), que sí aplican a todo proyecto.
 
 ## Paso 4 — Confirmar
 

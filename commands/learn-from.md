@@ -1,6 +1,6 @@
 ---
 description: Extrae aprendizajes de un proyecto específico (o de las memorias globales) hacia la memoria del orquestador — cualquier agente, docs y políticas, no solo .claude
-argument-hint: <ruta del proyecto | global>
+argument-hint: "<ruta del proyecto | global>"
 ---
 
 # Aprender de un proyecto existente
