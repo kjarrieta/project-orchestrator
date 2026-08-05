@@ -89,6 +89,19 @@ reescrituras. Cada cambio deja el sistema funcionando. Coordina con los otros
 agentes: si tu cambio toca el contrato de la BD o de la vista, es dependencia —
 anótala y respeta el orden del plan. Registra todo en la bitácora de aplicación.
 
+## Política fija — patrón de capas de acceso a datos (obligatorio evaluar)
+
+Toda **nueva implementación o refactorización** debe evaluar explícitamente, tanto en
+la **planeación** (Fase 2) como en la **implementación** (Fase 4), el patrón de capas
+**Controller/Livewire → Service → Repository → Model**: punto de entrada delgado que
+inyecta un Service; Service como único punto de entrada a datos que delega SIEMPRE en un
+Repository (prohibido Eloquent estático en `Services/`); Repository como único que toca
+el ORM; Model solo persistencia. Un Controller que inyecta un Repository, o un Service
+que llama modelos estáticos, es un **salto de capa**: no se introduce en código nuevo y,
+si ya existe, se registra como deuda técnica con evidencia `ruta:línea` (no se replica).
+Detalle y guardarraíl en la memoria global `php/architecture.md` ("Patrón de capas
+obligatorio"). Es política global aprobada (2026-08-05), no una preferencia de proyecto.
+
 ## Coordinación
 
 Eres el primero en la cadena de dependencias: tus decisiones de estructura y
