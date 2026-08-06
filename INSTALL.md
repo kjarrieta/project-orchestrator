@@ -1,6 +1,7 @@
 # Instalación — project-orchestrator
 
-Orquestador de proyectos de software para **Claude Code**: dirige **12 agentes senior**
+Orquestador de proyectos de software (implementación actual sobre Claude Code, agnóstico
+de proveedor): dirige **12 agentes senior**
 (arquitectura, BD, APIs, seguridad, QA, frontend, documentación…) en fases de
 **auditoría paralela de solo lectura → compuerta de aprobación humana → aplicación**.
 Regla innegociable: **cero suposiciones** (evidencia `ruta:línea` + doc oficial) y
@@ -47,7 +48,7 @@ git -C ~/.claude/skills/project-orchestrator pull
 
 ## Nota sobre la memoria
 
-Este repo **no** incluye la memoria global de aprendizajes (`memory-snapshot/` está en
-`.gitignore`): esa memoria es personal y puede contener referencias a proyectos propios.
-La skill funciona sin ella — la Fase R simplemente no encuentra memorias previas que
-ingerir y las va construyendo con tu uso.
+Este repo **no** incluye ninguna memoria de aprendizajes: la memoria global vive en el
+ámbito de usuario de cada instalación (`memory-snapshot/` está en `.gitignore`) y no se
+publica. La skill arranca sin ella — la Fase R simplemente no encuentra memorias previas
+que ingerir y las va construyendo con tu uso.

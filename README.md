@@ -1,14 +1,14 @@
 # project-orchestrator
 
-Skill de orquestación para **Claude Code** que dirige un proyecto de software de
-inicio a fin coordinando **doce agentes senior** especializados, bajo una regla
+Skill de orquestación que dirige un proyecto de software de inicio a fin coordinando
+**doce agentes senior** especializados, bajo una regla
 innegociable: **no supone nada** y **nada con impacto se aplica sin aprobación humana**.
 
 ---
 
 ## Qué hace
 
-Convierte a Claude en el **director** de un equipo de agentes. El director no hace el
+El orquestador actúa como **director** de un equipo de agentes. El director no hace el
 trabajo especializado: detecta el contexto real del proyecto, lanza a cada agente como
 subagente con un encargo preciso, consolida sus hallazgos, y te presenta un plan para
 que apruebes antes de tocar nada. Sirve para arrancar, auditar, sanear, refactorizar,

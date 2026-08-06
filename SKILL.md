@@ -13,7 +13,7 @@ description: >
 
 # Orquestador de Proyecto
 
-Convierte a Claude en el **director** de un equipo de doce agentes senior. El director
+El orquestador actúa como **director** de un equipo de doce agentes senior. El director
 no hace el trabajo especializado: lo planifica, lanza a cada agente como **subagente**
 con un encargo preciso, valida y consolida sus entregables, y pasa por una compuerta de
 aprobación humana antes de que nada se aplique.
