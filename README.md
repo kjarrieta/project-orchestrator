@@ -1,8 +1,10 @@
 # project-orchestrator
 
-Skill de orquestación que dirige un proyecto de software de inicio a fin coordinando
-**doce agentes senior** especializados, bajo una regla
+Skill de orquestación que dirige un proyecto de software de inicio a fin coordinando un
+**equipo de agentes senior** especializados, bajo una regla
 innegociable: **no supone nada** y **nada con impacto se aplica sin aprobación humana**.
+Cierra con un **Production Readiness Gate** (GO/NO-GO) y una **defensa anti-regresión en
+profundidad** que hace cumplir lo ya documentado.
 
 ---
 
@@ -20,33 +22,40 @@ afirmación se apoya en código real (ruta:línea) y cada recomendación en docu
 oficial de la versión exacta detectada; si falta evidencia, el agente pregunta en vez
 de inventar.
 
-## Los doce agentes
+## El equipo de agentes
 
 | Agente | Rol |
 |---|---|
-| **Retroalimentación** | Corre primero. Ingiere memorias previas del equipo (de Claude, de otros agentes, globales) para aprovechar lo ya sabido. |
+| **Retroalimentación** | Corre primero. Ingiere memorias previas del equipo y el registro de regresiones para aprovechar lo ya sabido y hacerlo cumplir. |
 | **Arquitecto** | Arquitectura, huecos de flujo, redundancia, clean code, SOLID, servicios escalables y concurrencia. |
+| **Revisor de Convenciones** | Convención de capas del stack e idioms del framework; anti-patrones de capa sin caer en over-engineering. |
 | **Arquitecto de Desarrollo** | Robustez de ejecución: manejo de errores, transacciones con rollback, idempotencia, solapamiento de reglas/notificaciones. |
 | **Base de Datos** | Integridad, optimización, relaciones, flujo de datos, aislamiento multi-tenant. |
 | **APIs** | Consistencia de contratos en producción, errores RFC 9457, seguridad OWASP API, y apificación de apps nuevas. |
 | **Integraciones y archivos** | S3, Drive, FTP/SFTP, terceros: resiliencia (backoff, timeouts, idempotencia), credenciales y archivos seguros. |
 | **Frontend** | Flujo y diseño, políticas de UI, réplica de validación de BD en la vista, UX/UI y accesibilidad. |
 | **SEO/GEO** | Solo web pública. URLs, SEO técnico y SEO para IA (crawlers, llms.txt, datos estructurados, contenido citable). |
+| **Performance** | N+1, consumo de memoria sobre datasets grandes, jobs (timeout/idempotencia/batching). Mide antes y después. |
+| **Observabilidad/SRE** | "¿Cómo sabemos que esto falló?": logs con contexto sin PII, métricas, alertas accionables, health checks. |
+| **Production/DevOps** | "¿Puedo desplegar un viernes?": migraciones backward-compatible, expand-contract, rollback, jobs viejos en el nuevo deploy. |
+| **Business Rules Auditor** | Matriz regla→fuente→implementación→test; detecta reglas de negocio no implementadas; matriz de cobertura. |
 | **QA Senior** | Sin autocomplacencia: pruebas de lógica, caja negra y blanca contra políticas y reglas de negocio; detecta conflictos de reglas. |
-| **Seguridad** | Inyecciones, OWASP, pentest defensivo del propio proyecto, dueño del veredicto de aislamiento de tenants. |
+| **Seguridad** | Inyecciones, OWASP, pentest defensivo del propio proyecto, dueño del veredicto de aislamiento de tenants y de los hard_gates. |
+| **Red Team / Audit Lead** | Meta-audita la auditoría: reconcilia contradicciones, caza PASS sin evidencia y puede anular un PASS antes del gate. |
 | **Documentación** | Automático. Doc viva módulo por módulo, registro de reglas de negocio y mapa de impacto, cierre documentado de cada desarrollo. |
-| **Aprendiz** | Automático. Destila aprendizajes de cada sesión en políticas y en memoria global por lenguaje. |
+| **Aprendiz** | Automático. Destila aprendizajes en políticas y memoria global; promueve regresiones al registro y las materializa (lint/test). |
 
 ## Flujo de ejecución
 
 ```
-Fase R  Retroalimentación  → ingerir memorias previas del equipo (solo lectura)
-Fase 0  Intake             → detectar stack, versiones, multi-tenant; poblar memoria de proyecto
-Fase 1  Auditoría          → agentes en paralelo, SOLO LECTURA
+Fase R  Retroalimentación  → ingerir memorias previas + registro de regresiones (solo lectura)
+Fase 0  Intake             → detectar stack, versiones, multi-tenant, estado Capa A; poblar memoria
+Fase 1  Auditoría          → agentes en paralelo, SOLO LECTURA (3 ejes por hallazgo)
 Fase 2  Consolidación      → unificar hallazgos y detectar conflictos
-Fase 3  Compuerta          → aprobar el plan (nada se aplica sin este paso)
-Fase 4  Aplicación         → en secuencia, sobre una rama, commits atómicos
-Fase 5  Verificación       → QA y Seguridad validan, independientes de quien aplicó
+Fase 2.5 Cross/Meta-Audit  → Red Team reconcilia y puede anular un PASS
+Fase 3  Compuerta          → emitir Production Gate GO/NO-GO; aprobar el plan (nada se aplica sin esto)
+Fase 4  Aplicación         → en secuencia, sobre una rama, commits atómicos; checklist de política por ruta
+Fase 5  Verificación       → QA y Seguridad validan + exigen el test/lint de cada regresión tocada
 ```
 
 Cada fase tiene un **bucle de validación**: si la salida de un agente no trae
@@ -124,7 +133,7 @@ anteriores archivadas).
   escriben solo con tu visto bueno; revísalos como cualquier código.
 - **Aplicación sobre rama** con commits atómicos y plan de reversa; los cambios
   irreversibles (migraciones destructivas) se separan y se aprueban aparte.
-- **Selección de equipo**: no se lanzan los doce por defecto; el director escoge los
+- **Selección de equipo**: no se lanza todo el equipo por defecto; el director escoge los
   agentes que el pedido necesita y justifica los que omite.
 - **Capacidades por tarea**: los plugins y skills del entorno se activan solo por
   proyecto y con tarea que lo justifique (`references/capabilities.md`); un agente
@@ -148,19 +157,28 @@ project-orchestrator/
 ├── commands/
 │   └── orchestrator.md         (comando /orchestrator — copiar a ~/.claude/commands/)
 └── references/
-    ├── evidence-protocol.md    (la ley común: evidencia, guardarraíles, concisión)
+    ├── evidence-protocol.md    (la ley común: evidencia, 3 ejes, guardarraíles, concisión)
     ├── setup.md                (instalación automática)
     ├── capabilities.md         (selección de plugins/skills del entorno por tarea)
+    ├── anti-regression.md      (defensa anti-regresión en 4 capas — solución de raíz)
+    ├── regression-ledger.md    (registro de regresiones e invariantes: backbone)
+    ├── production-gate.md      (Production Readiness Gate GO/NO-GO: criterio de decisión)
     ├── feedback.md             (Retroalimentación)
     ├── architect.md            (Arquitecto)
+    ├── conventions-reviewer.md (Revisor de Convenciones del Stack)
     ├── robustness.md           (Arquitecto de Desarrollo)
     ├── database.md             (Base de Datos)
     ├── api.md                  (APIs)
     ├── integrations.md         (Integraciones y archivos)
     ├── frontend.md             (Frontend)
     ├── seo.md                  (SEO/GEO)
+    ├── performance.md          (Performance Engineer)
+    ├── sre.md                  (Observabilidad/SRE del proyecto)
+    ├── devops.md               (Production/DevOps)
+    ├── business-rules.md       (Business Rules Auditor + matriz de cobertura)
     ├── qa.md                   (QA Senior)
     ├── security.md             (Seguridad)
+    ├── red-team.md             (Red Team / Audit Lead — meta-auditoría)
     ├── documentation.md        (Documentación)
     ├── learner.md              (Aprendiz)
     ├── language-memory.md      (memoria global por lenguaje)

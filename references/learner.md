@@ -46,6 +46,11 @@ antes de proponer cambios: actualizas lo que hay, no creas un sistema paralelo.
      políticas del proyecto (`CLAUDE.md`/reglas).
    - Si es un patrón de fallo recurrente → propón una prueba de regresión o un
      guardarraíl, y pásalo a QA y Seguridad.
+   - Si es una **regresión** (bug ya corregido) o un **invariante duro** de seguridad,
+     integridad de datos, aislamiento de tenant o concurrencia → **promuévelo al registro
+     de regresiones** (`regression-ledger.md`) con su señal de detección y su
+     `test_required`. Este es el paso que cierra el ciclo de raíz: sin él, la lección
+     vuelve a ser prosa que la próxima sesión ignora.
    - Si **generaliza más allá de este proyecto**, clasifícalo en el nivel correcto
      antes de promoverlo (ver `language-memory.md`):
      * **Lenguaje + versión** — idioms, footguns y prácticas del lenguaje/framework,
@@ -69,6 +74,20 @@ antes de proponer cambios: actualizas lo que hay, no creas un sistema paralelo.
    está prohibido: eso no es aprender, es corromper la memoria.
 5. Deja el registro en `.orchestrator/90-aprendizajes.md`: qué se aprendió, qué
    política/ADR/prueba/entrada-global propones, y su evidencia.
+
+## Garantía de regresión (Capa D — no negociable)
+
+> Toda lección con **firma de runtime** cierra con un **lint** (Capa A, política
+> ejecutable) o con un **test de regresión** (Capa D). Ninguna queda solo como prosa.
+
+No des por cerrada una lección de seguridad, integridad, tenant o concurrencia hasta que
+tenga su lint o su test:
+- Si la firma es **estática** (un patrón detectable en el código: `catch(\Throwable)`,
+  ORM en la vista, `->enum(` en migración) → materialízala como regla del linter de
+  políticas o test de arquitectura (Capa A), y baja el baseline al corregir.
+- Si **no es estática** (fuga cross-tenant, cálculo con decimales, transición de estado)
+  → materialízala como test de regresión y pásalo a QA/Seguridad como backlog de Fase 5.
+Detalle en `anti-regression.md`. Una lección sin lint ni test es una lección abierta.
 
 ## Límite importante
 

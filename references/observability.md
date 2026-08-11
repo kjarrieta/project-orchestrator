@@ -22,6 +22,10 @@ Regla: si una decisión no se puede trazar hasta su evidencia, no debió tomarse
 El director vigila señales objetivas de que un agente se desvió, y registra la causa:
 
 - **Sin evidencia**: afirma algo sin ruta:línea ni cita → falla de protocolo.
+- **Veredicto no declarado**: entregó informe pero su `veredicto.json` falta, o
+  `status`/`alcance_respetado`/`evidencia_chequeada` no se sostienen contra el `.md`.
+- **Alcance no declarado**: un archivo en `git status` que no figura en el
+  `cambios.json` del agente de APLICACIÓN.
 - **Fuera de alcance**: tocó o propuso algo que no estaba en su encargo.
 - **Suposición**: usó "probablemente/asumo/suele" en vez de un [HUECO].
 - **Autocomplacencia**: reportó "todo bien" sin pruebas, o hizo pasar un test
@@ -40,6 +44,11 @@ sensor dispara → señalar el desvío concreto al agente → reintentar UNA vez
    corrige  → continuar, anotando en la traza
    no corrige → registrar [HUECO], escalar a la persona, no consolidar esa salida
 ```
+
+Al reintentar, inyecta al agente su informe/veredicto previos y lo ya confirmado como
+**contexto histórico, no ground truth**: apunta al defecto sin obligarlo a re-explorar
+lo cubierto (mismo principio que el digest determinista: la evidencia previa viaja, no
+se re-descubre).
 
 Un mismo agente que dispara el mismo sensor repetidamente es una señal de que su brief
 o su modelo no encajan con la tarea: se reporta para revisión, no se insiste en bucle.

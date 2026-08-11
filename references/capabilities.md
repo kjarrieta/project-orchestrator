@@ -48,6 +48,8 @@ usa.
 | Tarea de la corrida | Capacidad | Tipo | Quién la usa |
 |---|---|---|---|
 | Auditar/diseñar/migrar base de datos, seed de datos | plugin `claude-db` (skills: audit, migrate, seed, explain, design, checklist) | plugin por proyecto | agente de BD: **delega en el plugin**, no rehace la auditoría |
+| Lint de seguridad de una migración antes del deploy | plugin `claude-db` (skill `migrate` / `db-migration-safety`) | plugin por proyecto | agente Production/DevOps: **delega**, no rehace el análisis de lock/reversa |
+| Prueba de carga real (no runner mono-conexión) | plugin `playwright` / harness k6·Artillery·Gatling | plugin + externo | agente Performance (declara [HUECO] si no hay harness) |
 | Citar doc oficial de la versión exacta (protocolo de evidencia) | plugin `context7` | plugin por proyecto | cualquier agente que deba anclar un RECOMENDADO |
 | Proyecto Laravel | plugin `laravel-boost` | plugin por proyecto | Arquitecto, BD, APIs |
 | Proyecto Expo / React Native | plugin `expo` | plugin por proyecto | Arquitecto, Frontend |

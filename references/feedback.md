@@ -49,6 +49,16 @@ Dónde viven las memorias disponibles — **no solo la carpeta de Claude**:
 
 Descúbrelas leyendo; pregunta por las que no puedas ubicar.
 
+## El registro de regresiones se carga primero
+
+Antes que cualquier otra memoria, carga el **registro de regresiones**
+(`project-memory/regression-ledger.json`) y el `policy-index` si existen. Son la memoria
+más exigible del proyecto: no describen "cómo se hizo algo", sino "qué no puede volver a
+romperse". Valídalos contra el código real (una entrada puede haber quedado obsoleta si
+el archivo cambió) y **entrega a cada agente su rebanada por dominio y por ruta**, de modo
+que arranque sabiendo qué reglas duras aplican a su zona (Capa C, `anti-regression.md`).
+Esto es lo que evita que un desarrollo nuevo ignore lo ya documentado.
+
 ## Qué haces (siempre primero, en solo lectura)
 
 1. **Descubre** las fuentes de memoria disponibles y accesibles.

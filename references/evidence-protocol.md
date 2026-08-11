@@ -1,6 +1,6 @@
 # Protocolo de evidencia (léelo antes que tu brief)
 
-Este documento es la ley común de los doce agentes. Su propósito es simple y
+Este documento es la ley común de todos los agentes del equipo. Su propósito es simple y
 duro: **eliminar las suposiciones**. Un agente senior no es el que más opina, es
 el que respalda cada afirmación con evidencia y sabe decir "no lo sé todavía".
 
@@ -89,6 +89,78 @@ Por cada hallazgo:
 - Cambio, archivos afectados, reversibilidad, dependencia con otros agentes
 ```
 
+## Veredicto estructurado (AUDITORÍA)
+
+Junto al informe, escribe en `.orchestrator/audit/<agente>.json` el veredicto que el
+director valida primero. El `.md` es narrativa para leer; el `.json` es el veredicto
+determinista:
+
+```json
+{
+  "agente": "<nombre>",
+  "modo": "AUDITORIA",
+  "alcance": "<el encargado>",
+  "status": "APROBADO | HUECO",
+  "evidencia_chequeada": true,
+  "alcance_respetado": true,
+  "suposiciones": 0,
+  "archivos_leidos": ["ruta:linea", "..."],
+  "huecos": ["<pregunta concreta>"]
+}
+```
+
+Reglas:
+- `status` solo admite `APROBADO` o `HUECO`. Si el `.json` falta, el director valida
+  parseando el `.md` como fallback y anota el entregable como incompleto en la traza.
+- `evidencia_chequeada`, `alcance_respetado` y `suposiciones` se contrastan contra el
+  informe: si el `.json` declara `true`/`0` y el `.md` no lo sostiene, dispara el
+  sensor de autocomplacencia.
+- Precedencia: el `.json` es la fuente de verdad para **validar**; el `.md` es la
+  narrativa para **consolidar**. Si difieren, manda el `.json` y el desajuste se anota.
+
+## Clasificación de hallazgos en tres ejes (Production Gate)
+
+Un hallazgo no se clasifica solo por severidad. Lleva **tres ejes independientes**, y el
+detalle del criterio de decisión vive en `production-gate.md` (léelo si tu salida
+alimenta el gate):
+
+- **Severidad:** `CRITICAL | HIGH | MEDIUM | LOW | INFO`.
+- **Gate:** `BLOCKING | NON-BLOCKING`.
+- **Confianza:** `CONFIRMED | LIKELY | UNVERIFIED | DESIGN-DEBT | OBSERVATION`.
+
+Dos reglas que aplican a todos:
+- **PASS requiere evidencia.** No marques `PASS` sin listar la evidencia (ruta:línea,
+  test, policy/lint). Sin evidencia ⇒ `UNVERIFIED`, nunca `PASS`.
+- Un HIGH/CRITICAL **CONFIRMED** de seguridad, integridad financiera, aislamiento de
+  tenant o concurrencia ⇒ `BLOCKING`. Y un boundary crítico **UNVERIFIED** ⇒
+  `BLOCKING-hasta-verificar`: la falta de prueba no lo baja a MEDIUM.
+
+Cuando un hallazgo es una regresión conocida o debe volverse invariante, enlázalo con su
+entrada del registro (`regression-ledger.md`) vía `ledger_ref`, y nombra el
+`test_required` que lo cierra.
+
+Por eso el bloque de hallazgos del `veredicto.json` se extiende:
+
+```json
+{
+  "id": "P1",
+  "titulo": "Acción Livewire mutadora sin authorize",
+  "dominio": "autorizacion",
+  "severity": "HIGH",
+  "gate": "BLOCKING",
+  "confidence": "CONFIRMED",
+  "hard_gate": "unauthorized_mutation",
+  "owasp": "API5:2023 BFLA",
+  "evidence": ["app/Livewire/Commission/Edit.php:84"],
+  "test_required": "CommissionAuthorizationTest::test_user_cannot_update_foreign_commission",
+  "ledger_ref": "REG-014",
+  "status": "OPEN"
+}
+```
+
+`hard_gate` es una clave de la lista de `production-gate.md` o `null`. Un `hard_gate`
+abierto es NO-GO, sin importar cuántos PASS haya.
+
 ## Formato de la bitácora de APLICACIÓN
 
 ```
@@ -103,6 +175,34 @@ Por cada hallazgo:
 ## Devuelto al director
 - [HUECO] hallazgos nuevos que NO apliqué y por qué
 ```
+
+## Bitácora estructurada de APLICACIÓN (`cambios.json`)
+
+Junto a la bitácora, escribe en `.orchestrator/apply/<agente>-cambios.json` la lista
+**autoritativa** de archivos que tocaste. Quien relea tu trabajo (verificación, otro
+agente) la usa en vez de inferir nombres desde la prosa:
+
+```json
+{
+  "agente": "<nombre>",
+  "plan_items": ["<ítems aprobados que cubre>"],
+  "archivos_creados": ["..."],
+  "archivos_modificados": ["..."],
+  "archivos_eliminados": [],
+  "reversa": {"plan": "git revert <commit>", "nota": "..."},
+  "verificado_localmente": "<comando y salida resumida>",
+  "descubierto_fuera_de_alcance": []
+}
+```
+
+Reglas:
+- Todo archivo creado, modificado o eliminado figura aquí. Un cambio presente en
+  `git status` que no esté en `cambios.json` es **alcance no declarado**: se revierte
+  o pasa por la compuerta.
+- `reversa` describe cómo deshacer el cambio. Un cambio sin plan de reversa no se
+  consolida en la Fase 5.
+- `descubierto_fuera_de_alcance` (vacío si nada) alimenta la regla "lo nuevo vuelve a
+  la compuerta".
 
 ## Guardarraíles contra el agente descontrolado
 

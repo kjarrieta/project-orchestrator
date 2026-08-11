@@ -48,9 +48,17 @@ disponibles. Verifícalo contra la doc oficial de la versión detectada.
    priorizados con remediación, no una colección de exploits.
 5. **Aislamiento de tenants (dueño del veredicto).** En multiempresa, consolidas todas
    las pruebas de cruce entre tenants en un **artefacto único** —
-   `.orchestrator/20-verificacion.md`, sección "Aislamiento de tenants"— con veredicto
+   `.orchestrator/30-verificacion.md`, sección "Aislamiento de tenants"— con veredicto
    claro (aísla / no aísla) y la evidencia de cada intento de fuga. El director lo
    exige en la compuerta.
+
+**Dueño de los `hard_gates` de seguridad.** Tus hallazgos confirmados de
+`cross_tenant_access`, `unauthorized_mutation`, `privilege_escalation` o
+`sensitive_data_exposure` son **BLOCKING/NO-GO** por sí solos (`production-gate.md`), y
+un boundary crítico **UNVERIFIED** bloquea hasta demostrarlo con test — no baja a MEDIUM
+por "no hay prueba de fuga". Clasifica cada hallazgo en los tres ejes (severidad + gate +
+confianza) y, si es una regresión o invariante duro, promuévelo al registro
+(`regression-ledger.md`) con su señal y su `test_required`, para que no vuelva a colarse.
 
 ## Manejo de URL y exposición de datos (política global)
 

@@ -13,6 +13,13 @@ Un repositorio con un `.claude/settings.json` malicioso ejecutaría sus hooks en
 máquina. Trata la configuración de hooks como código: revísala en PR, y a cada
 subagente dale el mínimo de herramientas que necesita.
 
+## Tres cosas se automatizan aquí
+
+1. **Documentación** tras editar código (`PostToolUse`) — refresca la doc del módulo.
+2. **Aprendiz** al cerrar sesión (`SessionEnd`) — destila y promueve regresiones.
+3. **Guard anti-regresión** antes de escribir (`PreToolUse`) — bloquea firmas duras del
+   registro de regresiones (Capa C, complementa la Capa A en CI).
+
 ## Los subagentes (dónde viven los agentes de esta skill)
 
 Cada agente se define como un archivo Markdown con frontmatter YAML en
@@ -101,6 +108,47 @@ Corre una sola vez, al terminar la sesión, con todo el trabajo como material:
 Si prefieres que un modelo decida si hubo algo que valga la pena persistir antes de
 gastar la corrida, usa un manejador `type: "prompt"` en el evento `Stop` que
 responda si conviene lanzar al aprendiz.
+
+### Guard anti-regresión antes de escribir → `PreToolUse`
+
+Capa C de la defensa anti-regresión (`anti-regression.md`). A diferencia de
+`PostToolUse`, `PreToolUse` corre **antes** de que la edición ocurra y **puede
+bloquearla** (exit code 2 o `permissionDecision: "deny"`). Cablea un manejador sobre
+`Edit|Write` que lea por stdin el JSON del evento (ruta + contenido/`new_string`
+propuesto), consulte las entradas del `regression-ledger.json` cuyo `alcance_rutas` casa
+con la ruta editada, y evalúe su `senal`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/scripts/anti-regression-guard.sh",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+`anti-regression-guard.sh`:
+- `grep_prohibido` que casa el patrón → **bloquea** (exit 2) con el ID de la entrada, el
+  invariante y la corrección esperada.
+- `grep_requerido` cuyo `patron` casa pero falta `requiere_ademas` → **bloquea**.
+- Cualquier entrada del dominio/ruta tocado → **inyecta** al contexto los invariantes
+  relevantes como recordatorio (aunque no bloquee).
+
+Es **complementario, no la red final**: cubre lo que escribe Claude Code; la garantía de
+que ningún autor (humano u otra herramienta) mergee una regresión la da la **Capa A**
+(linter de políticas + CI, en el propio repo). El bloqueo explica el invariante y cómo
+cumplirlo; la persona puede levantar el guard de forma explícita para un cambio concreto,
+nunca en silencio.
 
 ### Eventos útiles (referencia rápida)
 

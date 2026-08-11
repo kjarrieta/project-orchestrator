@@ -1,19 +1,22 @@
 ---
 name: project-orchestrator
 description: >
-  Dirige proyectos de software coordinando doce agentes senior (retroalimentación,
+  Dirige proyectos de software coordinando un equipo de agentes senior (retroalimentación,
   arquitectura, robustez, base de datos, APIs, integraciones, frontend, SEO/GEO, QA,
-  seguridad, documentación, aprendiz) en fases: auditoría paralela de solo lectura →
-  consolidación → compuerta humana → aplicación secuencial → verificación. Úsala para
+  seguridad, Red Team, documentación, aprendiz) en fases: auditoría paralela de solo
+  lectura → consolidación → meta-auditoría → compuerta humana → aplicación secuencial →
+  verificación. Úsala para
   arrancar, auditar, sanear, refactorizar, apificar o endurecer un proyecto, incluso si
-  solo dicen "revisa mi proyecto" o "que quede escalable". Regla innegociable: cero
-  suposiciones — evidencia ruta:línea y doc oficial de la versión exacta; ningún cambio
-  con impacto se aplica sin aprobación.
+  solo dicen "revisa mi proyecto" o "que quede escalable". Cierra con un Production
+  Readiness Gate (GO/NO-GO) y una defensa anti-regresión en profundidad que hace cumplir
+  lo ya documentado (políticas ejecutables que rompen el build, registro de regresiones,
+  meta-auditoría Red Team). Regla innegociable: cero suposiciones — evidencia ruta:línea
+  y doc oficial de la versión exacta; ningún cambio con impacto se aplica sin aprobación.
 ---
 
 # Orquestador de Proyecto
 
-El orquestador actúa como **director** de un equipo de doce agentes senior. El director
+El orquestador actúa como **director** de un equipo de agentes senior. El director
 no hace el trabajo especializado: lo planifica, lanza a cada agente como **subagente**
 con un encargo preciso, valida y consolida sus entregables, y pasa por una compuerta de
 aprobación humana antes de que nada se aplique.
@@ -36,16 +39,26 @@ leerlo antes de empezar. Es el archivo más importante.
 ## Modelo de ejecución
 
 ```
-Fase R  Retroalimentación → PRIMERO: ingerir memorias previas del equipo (solo lectura)
-Fase 0  Intake        →  detectar contexto real + capacidades del entorno (director)
-Fase 1  Auditoría     →  agentes EN PARALELO, SOLO LECTURA, independientes
+Fase R  Retroalimentación → PRIMERO: ingerir memorias + registro de regresiones + policy-index
+Fase 0  Intake        →  detectar contexto real + capacidades + estado de la Capa A anti-regresión
+Fase 1  Auditoría     →  agentes EN PARALELO, SOLO LECTURA, independientes (3 ejes por hallazgo)
 Fase 2  Consolidación →  director unifica hallazgos y detecta conflictos
-Fase 3  Compuerta     →  presentar a la persona; aprobar el plan de cambios
-Fase 4  Aplicación    →  agentes EN SECUENCIA por dependencias, ya con escritura
-Fase 5  Verificación  →  QA y Seguridad validan lo aplicado
+Fase 2.5 Cross/Meta   →  Red Team (Opus) reconcilia y puede anular un PASS
+Fase 3  Compuerta     →  emitir Production Gate GO/NO-GO; después presentar a la persona
+Fase 4  Aplicación    →  agentes EN SECUENCIA; cada uno carga su rebanada del policy-index
+Fase 5  Verificación  →  QA y Seguridad validan; exigen el test/lint de cada regresión tocada
 
-Automáticos (hooks): Documentación (al editar código) y Aprendiz (al cerrar sesión).
+Automáticos (hooks): Documentación (al editar código), Aprendiz (al cerrar sesión) y el
+guard anti-regresión (PreToolUse sobre Edit|Write, complementario a la Capa A en CI).
 ```
+
+**Defensa anti-regresión (solución de raíz).** Que un desarrollo nuevo no reintroduzca
+un bug ya documentado no se confía a la memoria de nadie: se hace cumplir con cuatro
+capas —política ejecutable en el repo (rompe el build), Production Gate, surface de
+política por ruta y suite de regresión— alimentadas por un registro de regresiones. Es
+transversal a todas las fases; el diseño completo está en **`references/anti-regression.md`**,
+el backbone de datos en **`references/regression-ledger.md`** y el criterio de decisión
+del gate en **`references/production-gate.md`**.
 
 Los cruces entre agentes (que el Frontend replique la validación de la BD, que el
 contrato de la API case con lo que consume el Frontend) no ocurren en la auditoría
@@ -65,6 +78,10 @@ lanzar agente → validar salida → ¿pasa?
           no → registrar como [HUECO] y escalar (no rellenar, no avanzar a ciegas)
 ```
 
+Al reintentar, **inyecta al agente su informe y veredicto anteriores y lo ya
+confirmado** como contexto histórico (no ground truth): si el código no cambió, no
+debe re-explorar lo que ya cubrió ni repetir las lecturas hechas.
+
 Una salida pasa solo si cada afirmación tiene evidencia, respetó alcance y modo, no
 introdujo suposiciones y viene en formato conciso. Encima de este bucle, una capa
 audita a **los agentes mismos** — trazabilidad en `.orchestrator/trace.md`, sensores
@@ -79,12 +96,15 @@ de desvío y feedback loop: `references/observability.md`.
   hallazgos de la primera oleada los justifican.
 - **Modelo por fase:** auditoría exploratoria → modelo medio; el modelo grande se
   reserva para la consolidación del director y los veredictos críticos (seguridad,
-  tenants). Jamás los doce en el modelo máximo.
+  tenants). Jamás todo el equipo en el modelo máximo.
 - **Informes acotados:** máximo ~120 líneas por informe; hallazgos repetitivos se
   agrupan con conteo y un ejemplo, no se enumeran uno a uno.
-- **Reanudación:** si `.orchestrator/audit/<agente>.md` ya existe de una corrida
-  cortada y pasa la validación, ese agente NO se relanza: la corrida continúa donde
-  quedó.
+- **Reanudación a nivel de paso:** si `.orchestrator/audit/<agente>.md` ya existe de
+  una corrida cortada y pasa la validación, ese agente NO se relanza. Más fino:
+  `state.json` guarda, por agente, qué módulos/archivos de su alcance ya quedaron
+  auditados y qué ítems del plan ya se aplicaron; al retomar, cada agente reanuda
+  desde su último paso registrado (su `veredicto.json`/`cambios.json` existente es la
+  prueba de avance), no desde cero.
 - Entradas compactas, una línea por hallazgo; a cada subagente solo su brief, la
   ficha, su alcance y las salidas de las que depende — nunca el historial entero.
 
@@ -94,8 +114,11 @@ de desvío y feedback loop: `references/observability.md`.
 
 Lanza al agente de **Retroalimentación** (`references/feedback.md`) en solo lectura
 para ingerir el aprendizaje que el equipo ya tiene (memorias de Claude y de otros
-agentes, memorias globales), normalizado con procedencia y deduplicado. Best-effort:
-usa lo accesible, reporta lo que no. Nada ingerido se vuelve canónico sin compuerta.
+agentes, memorias globales), normalizado con procedencia y deduplicado. **Carga primero
+el registro de regresiones** (`project-memory/regression-ledger.json`) y el
+`policy-index` si existen, y entrega a cada agente su rebanada por dominio/ruta: así
+nadie audita ni escribe sin las reglas duras que ya aplican a su zona. Best-effort: usa
+lo accesible, reporta lo que no. Nada ingerido se vuelve canónico sin compuerta.
 
 ## Fase 0 — Intake y detección de contexto
 
@@ -146,7 +169,12 @@ Frontend conduce la entrevista de diseño.
    y selecciona **solo** las que la tarea necesita, con activación por proyecto y uso
    bajo demanda — nunca todo encendido "por si acaso". Protocolo y mapa tarea→capacidad
    en **`references/capabilities.md`**.
-8. **Selecciona el equipo.** No lances los doce por defecto: escoge los agentes que el
+8. **Detecta el estado de la Capa A anti-regresión.** Comprueba si el proyecto ya tiene
+   políticas ejecutables (linter de políticas, tests de arquitectura, pre-commit, job de
+   CI, baseline) y un `regression-ledger`. Si existe, **no la reconstruyas**: reúsala y
+   solo baja el baseline al corregir. Si falta y el pedido lo amerita, propón generarla
+   en el plan (`references/anti-regression.md` y `references/setup.md`).
+9. **Selecciona el equipo.** No lances todo el equipo por defecto: escoge los agentes que el
    pedido necesita y justifica los omitidos. Un cambio de una vista no despierta al de
    BD; una migración no despierta al de Frontend.
 
@@ -155,26 +183,33 @@ multi-tenant, apificación, modo, equipo y capacidades activadas, con justificac
 
 ---
 
-## Los doce agentes
+## El equipo de agentes
 
 Brief detallado de cada uno en `references/`. Orden de dependencia para la APLICACIÓN:
-Arquitecto → BD → Robustez → APIs → Integraciones → Frontend → SEO → QA → Seguridad,
-con Documentación y Aprendiz automáticos alrededor.
+Arquitecto → Convenciones → BD → Robustez → APIs → Integraciones → Frontend → SEO →
+Performance → Observabilidad/SRE → DevOps → QA → Seguridad, con Business Rules y Red Team
+en auditoría/meta-auditoría, y Documentación y Aprendiz automáticos alrededor.
 
 | Agente | Brief | Foco |
 |---|---|---|
-| Retroalimentación | `feedback.md` | Ingiere memorias previas del equipo (espejo del Aprendiz). Va primero. |
+| Retroalimentación | `feedback.md` | Ingiere memorias previas del equipo y el registro de regresiones (espejo del Aprendiz). Va primero. |
 | Arquitecto | `architect.md` | Arquitectura, clean code, SOLID, servicios escalables, concurrencia. |
-| Arquitecto de Desarrollo | `robustness.md` | Errores/try-catch, transacciones y rollback, idempotencia, solapamiento de reglas. |
+| Revisor de Convenciones | `conventions-reviewer.md` | Convención de capas del stack e idioms del framework; anti-patrones sin over-engineering. |
 | Base de Datos | `database.md` | Integridad, optimización, flujo de datos, aislamiento multi-tenant. |
+| Arquitecto de Desarrollo | `robustness.md` | Errores/try-catch, transacciones y rollback, idempotencia, solapamiento de reglas. |
 | APIs | `api.md` | Contratos sin regresiones (diff vs línea base), RFC 9457, OWASP API; orquesta apificación. |
 | Integraciones y archivos | `integrations.md` | S3/Drive/FTP y terceros con resiliencia; credenciales; archivos subidos. |
 | Frontend | `frontend.md` | Flujo, diseño y políticas de UI; replica validación de BD en la vista; entrevista si es nuevo. |
 | SEO/GEO | `seo.md` | SEO técnico y SEO para IA (llms.txt, datos estructurados). Solo web pública. |
+| Performance | `performance.md` | N+1, memoria sobre datasets grandes, jobs (timeout/idempotencia/batching); mide antes/después. |
+| Observabilidad/SRE | `sre.md` | Logs con contexto sin PII, métricas, alertas accionables, health checks. Operabilidad del proyecto. |
+| Production/DevOps | `devops.md` | Migraciones backward-compatible, expand-contract, rollback, jobs viejos en el nuevo deploy. |
+| Business Rules Auditor | `business-rules.md` | Matriz regla→fuente→implementación→test; reglas no implementadas; matriz de cobertura (Opus). |
 | QA Senior | `qa.md` | Pruebas de lógica, caja negra/blanca contra reglas de negocio; conflictos entre reglas. |
-| Seguridad | `security.md` | Inyecciones, OWASP, pentest defensivo; dueño del veredicto de aislamiento de tenants. |
+| Seguridad | `security.md` | Inyecciones, OWASP, pentest defensivo; dueño del veredicto de aislamiento de tenants y hard_gates. |
+| Red Team / Audit Lead | `red-team.md` | Meta-audita la auditoría en Fase 2.5 (Opus); reconcilia contradicciones y puede anular un PASS. |
 | Documentación | `documentation.md` | Doc viva y merge documentado al cerrar. Automático al editar código. |
-| Aprendiz | `learner.md` | Destila la sesión en políticas y memoria global por lenguaje. Automático al cerrar. |
+| Aprendiz | `learner.md` | Destila la sesión en políticas y memoria global; promueve regresiones al registro y las materializa (lint/test). Automático al cerrar. |
 
 ### Cómo lanzar cada subagente
 
@@ -198,7 +233,10 @@ defecto al más grande.
 ## Fase 2 — Consolidación
 
 Lee los informes **desde `.orchestrator/audit/`** (el archivo es la fuente, no el
-mensaje final del subagente) y detecta conflictos entre agentes. Desempate no
+mensaje final del subagente) y detecta conflictos entre agentes. Valida primero el
+`veredicto.json` de cada agente (`status`, `alcance_respetado`, `evidencia_chequeada`);
+el `.md` es la narrativa. Informe sin `.json`, o cuyo `.json` no se sostenga contra el
+`.md`, se trata como entregable incompleto (reintento acotado o [HUECO]). Desempate no
 negociable: **integridad de datos y seguridad ganan** sobre rendimiento, elegancia o
 conveniencia. Produce `.orchestrator/10-plan-consolidado.md`: hallazgos priorizados
 por riesgo, cambios con cita oficial, orden de aplicación por dependencias.
@@ -207,9 +245,29 @@ Informe sin evidencia o subagente que no entrega: relánzalo acotado o regístra
 [HUECO]; no lo rellenes tú. **Versiona la corrida**: si `.orchestrator/` ya existe,
 archívala en `.orchestrator/runs/<fecha>/` antes de sobrescribir.
 
+## Fase 2.5 — Cross-Audit + Meta-Audit (Red Team)
+
+Antes de la compuerta, lanza al **Red Team / Audit Lead** (Opus, `references/red-team.md`)
+con SOLO los informes y evidencia de los demás —no el repo—, incluida la **matriz de
+cobertura** del Business Rules Auditor (`business-rules.md`), que cruza cada requisito
+crítico contra código/DB/test/seguridad/concurrencia y expone los huecos tipo P3
+(aislamiento sin test). Reconcilia contradicciones que la consolidación no resolvió, caza
+`PASS` sin evidencia, requisitos o rutas no auditadas, y severidades subestimadas.
+**Tiene autoridad para anular un PASS** y elevar un hallazgo a BLOCKING; su salida
+complementa e informa la compuerta humana, no la reemplaza. Sin esta pasada, varios
+agentes pueden equivocarse igual y el gate heredaría el error (el defecto "nada bloquea"
+con bloqueantes abiertos se caza aquí).
+
 ## Fase 3 — Compuerta de aprobación
 
-Presenta el plan legible: qué es OBSERVADO vs RECOMENDADO, riesgo, qué es
+**Primero emite el Production Gate.** Produce `.orchestrator/20-production-gate.md`
+(`references/production-gate.md`): tabla PASS/FAIL por dimensión, conteo por severidad,
+lista de BLOCKING y veredicto **GO / NO-GO**. No hay GO con un CRITICAL/HIGH BLOCKING o
+un `hard_gate` abierto. El gate **clasifica el riesgo, no decide por la persona**: la
+compuerta pregunta *qué corregir* **después** del veredicto. Si la persona acepta una
+deuda, queda como **NO-GO / riesgo asumido**, nunca como "nada bloquea".
+
+Luego presenta el plan legible: qué es OBSERVADO vs RECOMENDADO, riesgo, qué es
 irreversible, **plan de reversa**, y marca en grande cualquier **cambio rompiente de
 contrato de API**. Si es multiempresa, exige el **veredicto de aislamiento de tenants**
 (lo produce Seguridad): sin esa prueba, ningún cambio toca datos compartidos. No
@@ -218,16 +276,32 @@ apliques nada sin aprobación.
 ## Fase 4 — Aplicación
 
 Siempre sobre **rama dedicada**, con **commit atómico por cambio aprobado** (mensaje
-que referencia el ítem del plan). Agentes en modo APLICACIÓN, en secuencia por
-dependencias, solo lo aprobado; lo nuevo que descubran vuelve a la compuerta. Cambios
+que referencia el ítem del plan). **Antes de escribir en un módulo**, el agente carga su
+rebanada del `policy-index` (Capa C, `references/anti-regression.md`) y produce un
+checklist de cumplimiento con las mismas claves que las reglas ejecutables de Capa A; al
+corregir un hallazgo, **baja el baseline** de Capa A (la deuda solo disminuye). Agentes
+en modo APLICACIÓN, en secuencia por dependencias, solo lo aprobado; lo nuevo que
+descubran vuelve a la compuerta. Cambios
 no reversibles con un simple retroceso (migración destructiva, dato mutado) se separan
-y aplican solo con plan de reversa aprobado.
+y aplican solo con plan de reversa aprobado. Cada agente entrega
+`.orchestrator/apply/<agente>-cambios.json` (archivos tocados + reversa; formato en
+`evidence-protocol.md`); el director lo contrasta contra `git status` antes de avanzar
+al siguiente agente.
 
 ## Fase 5 — Verificación
 
 QA (funcionalidad vs reglas) y Seguridad (huecos cerrados) corren sus baterías contra
 lo aplicado. La verificación es **independiente de quien aplicó**: la prueba la diseña
 el verificador, sin reusar la aserción del autor. Regresiones vuelven al responsable.
+Base de diff de la verificación: los `cambios.json` de cada agente; un archivo tocado
+que no figure ahí es alcance no declarado y vuelve a la compuerta.
+
+**Verificación anti-regresión (Capa D, obligatoria).** Por cada entrada del registro de
+regresiones (`references/regression-ledger.md`) cuyo dominio o rutas toca el diff, debe
+existir y pasar su `test_required` (o su lint de Capa A). Sin esa prueba, el invariante
+queda **UNVERIFIED, nunca PASS**, y bloquea el cierre. Una lección de seguridad,
+integridad, tenant o concurrencia no se da por cerrada solo con prosa: cierra con lint o
+con test de regresión.
 
 ---
 
@@ -244,15 +318,22 @@ de escribir en producción.**
 .orchestrator/
 ├── 00-ficha-de-hechos.md   (equipo y capacidades seleccionados, con justificación)
 ├── project-memory/         (arquitectura, módulos, reglas, contratos: se relee en corridas siguientes)
-├── audit/                  (un informe por agente, modo AUDITORÍA)
+│   ├── regression-ledger.md / .json   (registro de regresiones e invariantes: backbone anti-regresión)
+│   └── ...
+├── audit/                  (por agente: <agente>.md + veredicto <agente>.json; incluye red-team.md/.json)
 ├── 10-plan-consolidado.md
-├── apply/                  (bitácora de cambios + cierre documentado)
+├── 20-production-gate.md   (GO/NO-GO por dimensión + BLOCKING; salida obligatoria de la Fase 3)
+├── apply/                  (bitácora + <agente>-cambios.json + cierre documentado)
 ├── api/                    (contrato base y diffs)
-├── 20-verificacion.md      (incluye prueba de aislamiento de tenants si aplica)
+├── 30-verificacion.md      (incluye prueba de aislamiento de tenants y verificación anti-regresión)
 ├── trace.md                (trazabilidad: quién, qué, por qué, validación)
 ├── 90-aprendizajes.md
-├── state.json              (commit y hashes de la última corrida: habilita el modo incremental)
+├── state.json              (commit, hashes y checkpoints por paso por agente: habilita el modo incremental y la reanudación)
 └── runs/<fecha>/           (corridas anteriores archivadas)
+
+El `policy-index.md` (Capa C) vive en `.claude/policy-index.md`, y la Capa A ejecutable
+(linter de políticas + tests de arquitectura + pre-commit + CI + baseline) en el propio
+repo del proyecto (ver `references/anti-regression.md` y `references/setup.md`).
 ```
 
 Cada archivo es autocontenido y con evidencia. La **memoria global por lenguaje** vive

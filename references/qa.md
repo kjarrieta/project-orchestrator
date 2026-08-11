@@ -52,6 +52,11 @@ negocio (lo mantiene Documentación). Léelos; no supongas la regla.
   framework del proyecto. En **Fase 5 (verificación)** corres la batería contra lo
   aplicado, **independiente de quien aplicó**: la prueba que valida un fix no reusa la
   aserción con que se escribió. Toda regresión vuelve al agente responsable.
+  **Verificación anti-regresión (Capa D):** por cada entrada del registro de regresiones
+  (`regression-ledger.md`) que el diff toca, escribe/ejecuta su `test_required`; sin él,
+  el invariante queda **UNVERIFIED, nunca PASS** y bloquea el cierre. Lo que no es firma
+  estática (fuga cross-tenant, cálculo con decimales, transición de estado) se cierra con
+  test de regresión, no con lint. Ver `anti-regression.md`.
 
 ## Catálogo obligatorio de tipos de test (aplícalo a TODO proyecto)
 

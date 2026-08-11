@@ -41,14 +41,17 @@ proveedor se ignora y manda la asignación de este paso.
 
 ## Paso 2 — Generar los subagentes (automático)
 
-Por cada brief en `references/` que sea un agente (feedback, architect, robustness,
-database, api, integrations, frontend, seo, qa, security, documentation, learner),
-escribe un archivo en `.claude/agents/<nombre>.md` con este patrón: frontmatter YAML +
-el cuerpo del brief como system prompt. Reglas al generarlos:
+Por cada brief en `references/` que sea un agente (feedback, architect,
+conventions-reviewer, robustness, database, api, integrations, frontend, seo,
+performance, sre, devops, business-rules, qa, security, red-team, documentation,
+learner), escribe un archivo en `.claude/agents/<nombre>.md` con este patrón:
+frontmatter YAML + el cuerpo del brief como system prompt. Reglas al generarlos:
 
-- **Agentes de solo diagnóstico** (feedback, architect, robustness, database, api,
-  integrations, frontend, seo, qa, security en su fase de auditoría) → `tools: Read,
-  Grep, Glob`. No reciben escritura hasta la fase de APLICACIÓN.
+- **Agentes de solo diagnóstico** (feedback, architect, conventions-reviewer, robustness,
+  database, api, integrations, frontend, seo, performance, sre, devops, business-rules,
+  qa, security, red-team en su fase de auditoría) → `tools: Read, Grep, Glob`. No reciben
+  escritura hasta la fase de APLICACIÓN. El **Red Team** y el **Business Rules Auditor**
+  no aplican código nunca: son solo AUDITORÍA/meta-auditoría.
 - **Agentes que redactan** (documentation, learner) → añaden `Write, Edit`.
 - `description` rico en señales de invocación proactiva (extraído de la primera línea
   del brief).
@@ -57,9 +60,11 @@ el cuerpo del brief como system prompt. Reglas al generarlos:
   - **Todos los agentes en AUDITORÍA** (incluidos architect, robustness, api,
     security, qa) → `claude-sonnet-4-6`. La auditoría es exploración masiva de código:
     el modelo grande aquí es el principal quemador de tokens de la skill.
-  - `claude-opus-4-8` se reserva para el **director** (consolidación, Fase 2-3) y
-    para veredictos críticos puntuales (aislamiento de tenants, decisión de seguridad
-    disputada) — nunca para los doce a la vez.
+  - `claude-opus-4-8` se reserva para el **director** (consolidación, Fase 2-3), el
+    **Red Team / Audit Lead** (Fase 2.5, meta-auditoría), el **Business Rules Auditor**
+    (razonamiento sobre reglas implícitas y no implementadas) y para veredictos críticos
+    puntuales (aislamiento de tenants, decisión de seguridad disputada) — nunca para todo
+    el equipo a la vez.
   - Ejecución y trabajo balanceado (fase de APLICACIÓN) → `claude-sonnet-4-6`.
   - Ligero / alto volumen (feedback, documentation de formato, ediciones simples) →
     `claude-haiku-4-5-20251001`.
@@ -78,6 +83,8 @@ bloque para `.claude/settings.json` (según `automation-hooks.md`):
 
 - `PostToolUse` con matcher `Edit|Write` → dispara al agente de Documentación.
 - `SessionEnd` → dispara al agente Aprendiz.
+- `PreToolUse` con matcher `Edit|Write` → guard anti-regresión (Capa C), bloquea firmas
+  duras del registro de regresiones antes de escribir. Complementa la Capa A en CI.
 
 Muestra el bloque, explica en una línea qué hace cada hook y su implicación de
 seguridad, y escríbelo solo tras el "sí". Si la persona prefiere no automatizar,
@@ -103,6 +110,31 @@ todos los agentes la respeten sin volver a preguntar. Si la persona no expresa
 preferencia, se adopta la convención dominante detectada; **nunca se impone una nueva**.
 No confundir con las políticas realmente globales (documentación de API, propagación de
 obligatoriedad de la BD, manejo de datos sensibles en URL), que sí aplican a todo proyecto.
+
+## Paso 3.7 — Defensa anti-regresión (Capas A y C)
+
+La pieza que hace que "lo documentado no vuelva a colarse". Ver `anti-regression.md`.
+
+1. **Detecta si ya existe.** Busca en el repo un linter de políticas, tests de
+   arquitectura, pre-commit y job de CI, y un `regression-ledger`/baseline. **Si están,
+   no los reconstruyas**: reúsalos y solo bajarás el baseline al corregir hallazgos.
+2. **Si faltan y el pedido lo amerita, propón generarlos** (con aprobación, igual que los
+   hooks):
+   - **Capa A ejecutable**, acotada a las firmas reales del proyecto: tests de
+     arquitectura para reglas estructurales + un comando de lint de políticas para las
+     firmas regex, cableados en la suite del stack + pre-commit + CI, con **baseline**
+     que congela la deuda actual (el gate solo falla ante violaciones nuevas). No
+     inventes reglas sin una política del proyecto que las respalde.
+   - **`project-memory/regression-ledger.md`/`.json`** — el registro que alimenta todas
+     las capas (`regression-ledger.md`).
+   - **`.claude/policy-index.md`** (Capa C) — mapa `ruta/glob → reglas duras aplicables`,
+     con las mismas claves que las reglas de Capa A.
+3. **Guard temprano opcional (Capa C):** el hook `PreToolUse` anti-regresión de
+   `automation-hooks.md`. Complementa la Capa A (cubre lo que escribe Claude Code); la
+   red final sigue siendo Capa A en CI.
+
+Todo esto se **propone y se escribe tras el visto bueno**; sin la Capa A el sistema
+funciona, pero pierde la garantía de "una regresión documentada no puede mergear".
 
 ## Paso 4 — Confirmar
 
