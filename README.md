@@ -158,6 +158,12 @@ project-orchestrator/
 │   └── orchestrator.md         (comando /orchestrator — copiar a ~/.claude/commands/)
 └── references/
     ├── evidence-protocol.md    (la ley común: evidencia, 3 ejes, guardarraíles, concisión)
+    ├── modes.md                (modos de operación: DISCOVER/ARCHITECT/IMPLEMENT/.../AUDIT/HARDEN)
+    ├── routing.md              (enrutamiento: descomposición, incertidumbre, don't-delegate, tools)
+    ├── capability-registry.md  (registro capacidad→agente: núcleo/condicional/meta)
+    ├── knowledge-system.md     (Facts/Knowledge/Memory/Learnings, jerarquía L0–L6, versión, caducidad)
+    ├── decision-ledger.md      (ADR + "why not": decisiones y descartes que no se re-litigan)
+    ├── risk-levels.md          (aprobación graduada R0–R4)
     ├── setup.md                (instalación automática)
     ├── capabilities.md         (selección de plugins/skills del entorno por tarea)
     ├── anti-regression.md      (defensa anti-regresión en 4 capas — solución de raíz)

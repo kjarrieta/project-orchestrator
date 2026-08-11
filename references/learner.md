@@ -75,6 +75,50 @@ antes de proponer cambios: actualizas lo que hay, no creas un sistema paralelo.
 5. Deja el registro en `.orchestrator/90-aprendizajes.md`: qué se aprendió, qué
    política/ADR/prueba/entrada-global propones, y su evidencia.
 
+## Pipeline de promoción (no promuevas a la brava)
+
+El riesgo del Aprendiz es **aprender demasiado**: convertir una decisión puntual de un
+proyecto en una regla global que contamina a todos los siguientes. Ninguna lección salta
+directo a memoria global. Pasa por esta tubería, y cualquier paso que falle la detiene:
+
+```
+Candidato          → una lección observada en la sesión (con evidencia)
+   ↓
+Deduplicar         → ¿ya existe una entrada que la cubre? Si sí, actualiza, no dupliques
+   ↓
+Chequeo de generalización → ¿es cierta fuera de este proyecto, o solo aquí?
+   ↓
+Chequeo de evidencia → ¿tiene fuente de nivel suficiente (knowledge-system.md, L0–L3)?
+   ↓
+Chequeo de alcance → clasifícala en el nivel correcto (abajo)
+   ↓
+Aprobación         → compuerta humana / política; nunca automática para memoria global
+   ↓
+Promover           → materializar en el nivel que le corresponde
+```
+
+### Clasifica el alcance antes de promover
+
+El error clásico es saltar de un caso particular a una ley universal. Distingue cinco
+niveles y promueve al **más restrictivo** que sea cierto:
+
+```
+PROJECT RULE     → "En ESTE proyecto no usamos DTOs"        → memoria de proyecto, NO sube
+TEAM RULE        → "Este equipo prefiere X convención"       → memoria de proyecto/equipo
+LANGUAGE RULE    → "En PHP 8.4, X es un footgun"             → memoria global por lenguaje+versión
+FRAMEWORK RULE   → "En Laravel 12, Y se hace con Z"          → memoria global por framework+versión
+GENERAL PRINCIPLE→ "Validar la entrada" (cierto en todo stack)→ memoria universal (practices.md)
+```
+
+Prueba de fuego: *"En este proyecto Laravel no usamos DTOs"* es una PROJECT RULE. Jamás
+se promueve como *"Laravel no debe usar DTOs"* (una FRAMEWORK RULE falsa). Una lección
+sube de nivel **solo** si es cierta en ese nivel con evidencia de la jerarquía de
+fuentes; ante la duda, se queda en el nivel más bajo. Una entrada global mala se replica
+a todos los proyectos futuros: el umbral para subir es alto por diseño.
+
+Detalle del almacén físico y la frontera proyecto↔global en `language-memory.md`; las
+clases de conocimiento y sus metadatos (procedencia, caducidad) en `knowledge-system.md`.
+
 ## Garantía de regresión (Capa D — no negociable)
 
 > Toda lección con **firma de runtime** cierra con un **lint** (Capa A, política

@@ -36,7 +36,30 @@ formatos de informe y guardarraíles contra el agente descontrolado) está en
 **`references/evidence-protocol.md`**. Léelo tú primero y ordena a cada subagente
 leerlo antes de empezar. Es el archivo más importante.
 
-## Modelo de ejecución
+## Principio rector: evidencia y capacidades, no catálogo
+
+> El catálogo de agentes **no** decide qué corre. Lo deciden la tarea y la
+> incertidumbre. Se agrega un agente porque hay incertidumbre no resuelta que solo esa
+> capacidad resuelve, jamás porque el catálogo lo contiene.
+
+De aquí salen dos consecuencias que gobiernan todo lo demás:
+- **Piensa en capacidades, no en agentes.** El nº de agentes es un detalle de
+  implementación. El orquestador pide una *capacidad* y el registro resuelve quién la
+  provee: `references/capability-registry.md` (datos) + `references/routing.md`
+  (descomposición de tarea, escalamiento por incertidumbre, regla don't-delegate, tool
+  routing).
+- **La auditoría es un modo, no el centro.** El pedido elige el modo (DISCOVER,
+  ARCHITECT, IMPLEMENT, REFACTOR, DEBUG, MIGRATE, AUDIT, HARDEN, DOCUMENT, LEARN) y el
+  modo selecciona qué fases corren y qué riesgo asume: `references/modes.md`. El
+  "Modelo de ejecución" de abajo es el pipeline completo del **modo AUDIT**; los demás
+  modos son subconjuntos.
+
+Conocimiento anclado a versión, con jerarquía de fuentes (L0–L6) y caducidad, separando
+Facts/Knowledge/Memory/Learnings: `references/knowledge-system.md`. Decisiones y
+descartes ("why not") para no re-litigar lo cerrado: `references/decision-ledger.md`.
+Aprobación graduada por riesgo (R0–R4): `references/risk-levels.md`.
+
+## Modelo de ejecución (modo AUDIT — pipeline completo)
 
 ```
 Fase R  Retroalimentación → PRIMERO: ingerir memorias + registro de regresiones + policy-index
@@ -270,8 +293,15 @@ deuda, queda como **NO-GO / riesgo asumido**, nunca como "nada bloquea".
 Luego presenta el plan legible: qué es OBSERVADO vs RECOMENDADO, riesgo, qué es
 irreversible, **plan de reversa**, y marca en grande cualquier **cambio rompiente de
 contrato de API**. Si es multiempresa, exige el **veredicto de aislamiento de tenants**
-(lo produce Seguridad): sin esa prueba, ningún cambio toca datos compartidos. No
-apliques nada sin aprobación.
+(lo produce Seguridad): sin esa prueba, ningún cambio toca datos compartidos.
+
+**Aprobación graduada por riesgo (`references/risk-levels.md`).** "Ningún cambio con
+impacto se aplica sin aprobación" sigue firme para lo que tiene impacto, pero la
+ceremonia se gradúa: R0 (solo lectura) y R1 (formato/docs/tests) son automáticos pero
+declarados; R2 (local acotado) se aplica en rama con diff visible y reversa trivial;
+R3 (API/BD/seguridad) y R4 (irreversible/producción) **exigen aprobación humana
+explícita** e innegociable. Ante la duda entre dos niveles, elige el más alto. No
+apliques ningún R3/R4 sin aprobación.
 
 ## Fase 4 — Aplicación
 

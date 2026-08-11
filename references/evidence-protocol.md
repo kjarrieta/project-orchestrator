@@ -37,6 +37,12 @@ figura en el lockfile / manifiesto, no la última que exista):
 No cuentan como fuente: blogs, respuestas de foros, tutoriales, ni tu memoria.
 Pueden orientarte para *buscar*, pero la afirmación se ancla a la fuente oficial.
 
+Estas fuentes tienen **grados** (una jerarquía L0–L6: runtime/tests > doc de versión >
+RFC/estándar > repo/changelog > vendor > secundarias > comunidad). Cuando dos fuentes
+se contradicen, gana la de nivel más bajo; la comunidad (L6) jamás es canónica. El
+detalle por tipo de afirmación (seguridad exige L0–L2, etc.) está en
+`knowledge-system.md`.
+
 **Fija la versión primero.** Recomendar la sintaxis de una versión que el proyecto
 no usa es un error tan grave como inventar. Antes de citar, confirma qué versión
 corre este proyecto y busca la documentación de *esa* versión.
