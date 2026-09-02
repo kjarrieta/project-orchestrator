@@ -326,6 +326,15 @@ el verificador, sin reusar la aserción del autor. Regresiones vuelven al respon
 Base de diff de la verificación: los `cambios.json` de cada agente; un archivo tocado
 que no figure ahí es alcance no declarado y vuelve a la compuerta.
 
+**Verificación de concurrencia y condiciones de carrera (global, obligatoria).** Si el
+diff toca una superficie sensible a carreras (escrituras compartidas, unicidad de clave
+natural, ledger de idempotencia, bloqueo optimista, reclamación atómica de un efecto único,
+reintentos de colas, datos entre tenants), QA —con Robustez y Seguridad— ejecuta **ambas**:
+las **pruebas de condición de carrera** (integridad a nivel unit/integración) y las
+**pruebas de concurrencia** (harness de carga con testigos). Sin ellas el invariante queda
+UNVERIFIED (nunca PASS) y bloquea el cierre; mapea a la dimensión Concurrency y a los
+`hard_gates` de carrera del gate. Política completa en `references/qa.md`.
+
 **Verificación anti-regresión (Capa D, obligatoria).** Por cada entrada del registro de
 regresiones (`references/regression-ledger.md`) cuyo dominio o rutas toca el diff, debe
 existir y pasar su `test_required` (o su lint de Capa A). Sin esa prueba, el invariante

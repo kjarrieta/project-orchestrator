@@ -92,6 +92,42 @@ y reutilizable (un componente por artefacto, no copias). Cada estado (carga, vac
 error, sin permiso) queda cubierto. Verifica accesibilidad básica en lo que tocas.
 Registra en la bitácora qué se unificó y qué patrón queda como canónico.
 
+### Checks específicos para componentes Livewire con validación de entrada (aprendidos en campo)
+
+> Aplican cuando el componente tiene métodos de tipo `confirm*` / `execute*` / `save*` con
+> múltiples ramas. Verificar evidencia ruta:línea antes de reportar.
+
+- **Asimetría de validación entre ramas del mismo método (MOD3-R3).** Cuando `confirmExecuteJob()`
+  / `save()` tiene varias ramas (`if ($useRange) { ... } elseif ($useDate) { ... }`) y solo
+  una de ellas incluye una guarda de validación (p. ej. `isFuture()` en la rama de rango pero
+  no en la rama de fecha individual), la segunda rama es un bypass silencioso: el usuario puede
+  enviar un valor inválido por esa rama y el job se despacha sin rechazo. Verificar: todo
+  método Livewire con múltiples ramas de datos — ¿cada rama aplica el mismo conjunto de
+  validaciones de negocio, o solo la primera rama las tiene? La corrección es hacer simétrica
+  la validación: si la rama de rango rechaza `isFuture()`, la rama de fecha individual también
+  debe rechazarlo.
+
+- **`Carbon::isFuture()` devuelve `false` para hoy a medianoche tras `startOfDay()` (MOD3-R4).**
+  `Carbon::parse('2026-08-24')->startOfDay()` produce `2026-08-24 00:00:00`; `isFuture()`
+  devuelve `false` porque ese timestamp ya pasó. Para rechazar "hoy o futuro" como valor
+  inválido, usar `$date->isToday() || $date->isFuture()` en lugar de solo `isFuture()`. Para
+  detectar que una fecha ES hoy y ajustar silenciosamente al día anterior, usar `isToday()`
+  directamente. Verificar: toda validación de tipo "la fecha no puede ser la actual o futura"
+  que use solo `isFuture()` — si la vista usa un `date` picker con tiempo implícito en
+  medianoche, hoy siempre escapará a esa guarda.
+
+- **Control migrado de único a `multiple` sin actualizar el consumidor del valor (rama
+  job-execution 2026-08-26).** Al cambiar `wire:model.live` de un control escalar a uno
+  `multiple` (Flux `pillbox multiple`, `<select multiple>`, checkboxes), la prop pasa de escalar
+  a **array** (`public $x = []`). Si algún consumidor (repositorio, query, export, validación)
+  sigue esperando escalar, el filtro/acción **falla en silencio** (PHP no lanza error de tipo).
+  Caso canónico: `filter_var($array, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE)` devuelve
+  `null` y el guard `if ($val !== null)` desactiva el filtro → conteos y acciones masivas operan
+  sobre TODO el conjunto. Verificar: por cada prop con blade `multiple`, ¿todos sus consumidores
+  la tratan como array (`whereIn`, `$x[0]`, `in_array`)? Evidencia:
+  `app/Livewire/Admin/Mls/MlsFilter.php` (arrays) vs
+  `app/Repositories/Mls/Concerns/QueriesAdminProperties.php:172-185` (escalar). Ledger: REG-115.
+
 ## Coordinación
 
 Dependes de BD (qué validar y qué datos existen), de Arquitecto (contratos y

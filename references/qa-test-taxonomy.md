@@ -50,6 +50,11 @@ afirmando comportamiento inseguro es sabotaje (regla de oro de `qa.md`).
 - **Dueño del veredicto de aislamiento de tenants:** coordina con el agente Seguridad.
 
 ### 3. Concurrencia / integridad (tolerancia a múltiples usuarios — parte testeable)
+> En **Fase 5 (verificación)** esta categoría es **obligatoria**, no opcional, siempre que
+> el diff toque una superficie sensible a carreras: ejecuta las **pruebas de condición de
+> carrera** (integridad, aquí) **y** las **pruebas de concurrencia** (carga con testigos,
+> abajo). Política global y disparadores en `qa.md` → "Política global de verificación:
+> condiciones de carrera y concurrencia".
 - **Ataca:** carreras que crean duplicados o pierden escrituras: falta de `UNIQUE` en
   claves naturales, dedup solo en código sin lock, doble-booking de slots, lost update.
 - **Método en test unitario/integración:** prueba la **integridad que DEBERÍA atrapar la

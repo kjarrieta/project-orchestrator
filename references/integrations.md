@@ -90,6 +90,41 @@ evalúa: ¿maneja fallos del proveedor?, ¿reintenta con backoff+jitter o martil
 ¿qué privilegios usa? Cada credencial hardcodeada o integración sin timeout es un
 [OBSERVADO] de riesgo alto. Informa con el formato del protocolo.
 
+### Checks específicos de HTTP / APIs externas (aprendidos en campo)
+
+- **Laravel HTTP client sin `->throw()` → éxito falso (REG-108).** `Http::get()`/`post()`
+  devuelven un `Response` para cualquier código HTTP, incluido 5xx. Sin `->throw()`, un
+  error del proveedor entra en el branch de fallo del service method pero no lanza
+  excepción — el job/batch caller no ve ningún `\Throwable`, lo marca como éxito y el
+  `JobExecution` queda en `'success'`. Verificar: todo método de service que llama a
+  `Http::` y es invocado desde un job o batch — ¿propaga el error como excepción, o
+  retorna `void`/`null` silenciosamente ante un 5xx? La corrección es `->throw()` en la
+  cadena HTTP o lanzar explícitamente cuando `!$response->successful()`.
+
+- **Reintento sobre unidad diferente a la fallida.** En jobs que procesan un rango
+  (fechas, páginas, entidades) y comparten estado mutable entre iteraciones, retroceder
+  a una unidad anterior en el reintento no repite el trabajo fallido — re-ejecuta datos
+  de una unidad ya procesada y sobreescrita (tablas temporales truncadas, cursores
+  consumidos). El reintento debe siempre apuntar a la MISMA unidad fallida, con
+  idempotencia garantizada. Verificar: todo loop de integración que hace reintento en
+  caso de fallo del proveedor — ¿la unidad reintentada es la misma que falló?
+
+- **Renovación forzada de token disparada por un fallo de negocio, no por un 401 (rama
+  job-execution 2026-08-26).** Forzar `getToken(true)`/invalidar el token cacheado como reacción
+  a un error de datos (p. ej. "zona/sector no encontrado") ataca la causa equivocada: ese error
+  casi siempre es un catálogo desactualizado, no un token revocado. Descarta un token válido y
+  añade un round-trip de auth por cada valor distinto. Verificar: todo `getToken(true)` /
+  refresh de credencial — ¿lo dispara un `401`/`403` tipado del cliente HTTP, o un `null`/"no
+  encontrado" del dominio? Evidencia: `app/Services/Mobilia/SyncMobilia/SyncMobiliaJwtPropertyService.php:294,:319`.
+
+- **`continue` que descarta registros en un loop de sync sin contador ni traza (rama
+  job-execution 2026-08-26).** Filtrar registros del proveedor (`continue`) sin contar cuántos
+  ni loguear el criterio pierde datos en silencio; peor si el filtro se apoya en un literal
+  externo (`strcasecmp($status,'Disponible')`) que el proveedor puede cambiar. El descarte puede
+  ser intencional; la falta de traza no. Verificar: todo `continue` en `foreach ($items)` de un
+  servicio de sync — ¿hay contador de descartes + `Log::` con el desglose? Evidencia:
+  `app/Services/Mobilia/SyncMobilia/SyncMobiliaJwtPropertyService.php:242`. Ledger: REG-117.
+
 ## En modo APLICACIÓN
 
 Implementa solo lo aprobado, de forma idiomática al SDK del proyecto. Cada patrón de
