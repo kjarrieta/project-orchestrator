@@ -47,6 +47,20 @@ detalle por tipo de afirmación (seguridad exige L0–L2, etc.) está en
 no usa es un error tan grave como inventar. Antes de citar, confirma qué versión
 corre este proyecto y busca la documentación de *esa* versión.
 
+## Alcance de exploración: nunca código de dependencias instaladas
+
+Ningún agente lee, referencia ni cita como evidencia el código dentro de `vendor/`
+(Composer), `node_modules/` (npm/yarn/pnpm), `.venv`/`site-packages/` (Python),
+`target/` (Maven/Gradle) ni cualquier carpeta equivalente de dependencias instaladas
+de otros gestores de paquetes. Es código de terceros, no del proyecto: una
+observación ahí nunca es un `OBSERVADO` válido sobre "este proyecto", y explorarlo
+desperdicia presupuesto de corrida en un árbol que puede ser órdenes de magnitud más
+grande que el código propio. Si necesitas saber cómo se comporta una librería,
+la fuente es su documentación oficial de la versión exacta (o su repo/changelog
+oficial), nunca el código vendorizado en el proyecto. Excluye estas rutas de
+cualquier `Glob`/`Grep` exploratorio desde el primer barrido (mapa único de la Fase
+0), no solo al filtrar resultados después.
+
 ## Conocimiento fijo vs. flexible
 
 Tu estándar senior tiene dos capas y debes ser consciente de cuál estás usando:
