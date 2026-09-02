@@ -31,46 +31,46 @@ Agent Registry
 
 El verdadero core es reducido. Todo lo demás es dinámico.
 
-| Capacidad | Agente que la provee | Brief |
-|---|---|---|
-| `orchestration` | Orquestador (el director) | `SKILL.md` |
-| `architecture` | Arquitecto | `architect.md` |
-| `verification` / `qa` | QA Senior | `qa.md` |
-| `security` | Seguridad | `security.md` |
-| `knowledge` / `evidence` | Retroalimentación + protocolo | `feedback.md`, `evidence-protocol.md`, `knowledge-system.md` |
+| Capacidad | Agente que la provee | Brief | Foco |
+|---|---|---|---|
+| `orchestration` | Orquestador (el director) | `SKILL.md` | Planifica, lanza, valida, consolida y lleva a la compuerta. |
+| `architecture` | Arquitecto | `architect.md` | Arquitectura, clean code, SOLID, servicios escalables, concurrencia. |
+| `verification` / `qa` | QA Senior | `qa.md` | Pruebas de lógica, caja negra/blanca contra reglas de negocio; conflictos entre reglas. |
+| `security` | Seguridad | `security.md` | Inyecciones, OWASP, pentest defensivo; dueño del veredicto de aislamiento de tenants y `hard_gates`. |
+| `knowledge` / `evidence` | Retroalimentación + protocolo | `feedback.md`, `evidence-protocol.md`, `knowledge-system.md` | Ingiere memorias previas del equipo y el registro de regresiones (espejo del Aprendiz). Va primero. |
 
 ### Condicional (entra solo bajo demanda)
 
 Ninguna se activa "por si acaso". Se activa cuando una subtarea de la corrida la
 requiere (ver `routing.md`, resolución de capacidades).
 
-| Capacidad | Agente | Brief | Se activa cuando |
-|---|---|---|---|
-| `conventions` | Revisor de Convenciones | `conventions-reviewer.md` | hay código que aplicar/revisar |
-| `database` | Base de Datos | `database.md` | el pedido toca esquema, datos o consultas |
-| `robustness` | Arquitecto de Desarrollo | `robustness.md` | hay transacciones, errores, idempotencia en juego |
-| `api` | APIs | `api.md` | hay contratos de API o apificación |
-| `integration` | Integraciones | `integrations.md` | hay terceros, archivos, colas externas |
-| `frontend` | Frontend | `frontend.md` | hay UI (web/móvil/desktop/CLI con vista) |
-| `systems-architecture` | Arquitecto (capacidad extendida) | `architect.md` | microservicios, event-driven, distribuido, colas, consistencia, multi-región |
-| `performance` | Performance | `performance.md` | hay N+1, datasets grandes, jobs, latencia medida |
-| `observability` / `sre` | Observabilidad/SRE | `sre.md` | operabilidad, logs, métricas, alertas |
-| `devops` / `migration-safety` | Production/DevOps | `devops.md` | migraciones, deploy, reversa |
-| `business-rules` | Business Rules Auditor | `business-rules.md` | hay reglas de negocio que trazar a implementación |
-| `public-web` → `seo` → `geo` | SEO/GEO | `seo.md` | y **solo si** el proyecto tiene web pública indexable |
+| Capacidad | Agente | Brief | Foco | Se activa cuando |
+|---|---|---|---|---|
+| `conventions` | Revisor de Convenciones | `conventions-reviewer.md` | Convención de capas del stack e idioms del framework; anti-patrones sin over-engineering. | hay código que aplicar/revisar |
+| `database` | Base de Datos | `database.md` | Integridad, optimización, flujo de datos, aislamiento multi-tenant. | el pedido toca esquema, datos o consultas |
+| `robustness` | Arquitecto de Desarrollo | `robustness.md` | Errores/try-catch, transacciones y rollback, idempotencia, solapamiento de reglas. | hay transacciones, errores, idempotencia en juego |
+| `api` | APIs | `api.md` | Contratos sin regresiones (diff vs línea base), RFC 9457, OWASP API; orquesta la apificación. | hay contratos de API o apificación |
+| `integration` | Integraciones | `integrations.md` | S3/Drive/FTP y terceros con resiliencia; credenciales; archivos subidos. | hay terceros, archivos, colas externas |
+| `frontend` | Frontend | `frontend.md` | Flujo, diseño y políticas de UI; replica la validación de BD en la vista; entrevista si es nuevo. | hay UI (web/móvil/desktop/CLI con vista) |
+| `systems-architecture` | Arquitecto (capacidad extendida) | `architect.md` | Distribución, consistencia y colas cuando el problema deja de ser monolítico. | microservicios, event-driven, distribuido, colas, consistencia, multi-región |
+| `performance` | Performance | `performance.md` | N+1, memoria sobre datasets grandes, jobs (timeout/idempotencia/batching); mide antes/después. | hay N+1, datasets grandes, jobs, latencia medida |
+| `observability` / `sre` | Observabilidad/SRE | `sre.md` | Logs con contexto sin PII, métricas, alertas accionables, health checks. Operabilidad del proyecto. | operabilidad, logs, métricas, alertas |
+| `devops` / `migration-safety` | Production/DevOps | `devops.md` | Migraciones backward-compatible, expand-contract, rollback, jobs viejos en el nuevo deploy. | migraciones, deploy, reversa |
+| `business-rules` | Business Rules Auditor | `business-rules.md` | Matriz regla→fuente→implementación→test; reglas no implementadas; matriz de cobertura (Opus). | hay reglas de negocio que trazar a implementación |
+| `public-web` → `seo` → `geo` | SEO/GEO | `seo.md` | SEO técnico y SEO para IA (llms.txt, datos estructurados). | y **solo si** el proyecto tiene web pública indexable |
 
 ### Meta
 
-| Capacidad | Agente | Brief |
-|---|---|---|
-| `meta-audit` / `red-team` | Red Team / Audit Lead | `red-team.md` |
+| Capacidad | Agente | Brief | Foco |
+|---|---|---|---|
+| `meta-audit` / `red-team` | Red Team / Audit Lead | `red-team.md` | Meta-audita la auditoría en Fase 2.5 (Opus); reconcilia contradicciones y puede anular un PASS. |
 
 ### Automáticos (alrededor del ciclo)
 
-| Capacidad | Agente | Brief | Disparo |
-|---|---|---|---|
-| `documentation` | Documentación | `documentation.md` | hook al editar código |
-| `learning` | Aprendiz | `learner.md` | hook al cerrar sesión |
+| Capacidad | Agente | Brief | Foco | Disparo |
+|---|---|---|---|---|
+| `documentation` | Documentación | `documentation.md` | Doc viva y merge documentado al cerrar. | hook al editar código |
+| `learning` | Aprendiz | `learner.md` | Destila la sesión en políticas y memoria global; promueve regresiones al registro y las materializa (lint/test). | hook al cerrar sesión |
 
 ## Capacidades de dominio (fuera del core)
 
