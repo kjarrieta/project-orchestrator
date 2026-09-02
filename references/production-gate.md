@@ -75,6 +75,17 @@ MEDIUM sobre aislamiento de tenant es más peligroso que un HIGH de un Service g
    evidencia (típicamente un test de regresión). Distinguir "no sabemos si hay fuga" de
    "no hay fuga" es obligatorio.
 
+5. **FAIL/BLOCKING requiere evidencia reproducible, simétrico a la regla de PASS.** Un
+   hallazgo que bloquea el GO no se sostiene solo con sospecha o razonamiento plausible:
+   debe declarar el **tipo de evidencia** (static/runtime/test/db/policy/inferred) y, si
+   es CONFIRMED, los **pasos de reproducción** (rol, acción, entrada, esperado vs.
+   observado) — no solo la ruta:línea del código sospechoso. Sin pasos de reproducción,
+   el hallazgo se degrada a `LIKELY` (no `CONFIRMED`) hasta que alguien lo reproduzca;
+   sigue bloqueando si su severidad lo amerita, pero no se presenta como demostrado
+   cuando no lo está. Esto evita que un BLOCKING se apoye en la misma clase de
+   afirmación sin respaldo que la regla de "PASS requiere evidencia" ya prohíbe del
+   otro lado.
+
 ## Definition of Done — `.orchestrator/20-production-gate.md`
 
 La Fase 3 **debe** producir este artefacto antes de la compuerta. Tabla PASS/FAIL por

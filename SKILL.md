@@ -130,6 +130,24 @@ de desvío y feedback loop: `references/observability.md`.
   prueba de avance), no desde cero.
 - Entradas compactas, una línea por hallazgo; a cada subagente solo su brief, la
   ficha, su alcance y las salidas de las que depende — nunca el historial entero.
+- **Presupuesto total por corrida (no solo por oleada).** El límite de 4 auditores es
+  por oleada; además, la corrida completa (auditoría + consolidación + Red Team + QA +
+  aplicación) tiene un techo de agentes total, fijado en la ficha según el tamaño del
+  pedido (p. ej. 8 para un cambio acotado, 15-20 para una auditoría completa). Al
+  alcanzarlo sin cerrar el pedido, el director se detiene en estado **"DELEGATION
+  EXHAUSTED"**: reporta qué falta, por qué, y pide autorización explícita para exceder
+  el presupuesto en vez de seguir lanzando agentes sin más.
+- **Compactación de contexto por umbral relativo, no absoluto.** Cuando el contexto de
+  un agente (director o subagente) alcanza ~60-75% de su ventana disponible, resume y
+  descarta detalle ya consolidado (hallazgos ya escritos a `.orchestrator/`, lecturas ya
+  citadas por ruta:línea); a ~75-90% es checkpoint obligatorio (persistir estado antes
+  de seguir); por encima de ~90% el paso siguiente es cerrar esa ejecución y continuar
+  en una nueva invocación que retome desde el checkpoint, no seguir acumulando. Umbrales
+  en porcentaje de la ventana real del modelo en uso, no en cifras fijas de tokens —
+  distintos modelos y sesiones tienen ventanas de tamaño muy distinto. Complementa,
+  sin sustituir, el checkpoint de estado de trabajo (`remember`, ver política global
+  P-CHECKPOINT-01 si el entorno la tiene) — aquí el disparador es cuantitativo y
+  aplica a cualquier agente, no solo a la sesión principal.
 
 ---
 
@@ -341,6 +359,23 @@ existir y pasar su `test_required` (o su lint de Capa A). Sin esa prueba, el inv
 queda **UNVERIFIED, nunca PASS**, y bloquea el cierre. Una lección de seguridad,
 integridad, tenant o concurrencia no se da por cerrada solo con prosa: cierra con lint o
 con test de regresión.
+
+**Verificación tipo mutation-testing del `test_required` (obligatoria antes de aceptarlo).**
+Que el test exista y pase no basta: antes de marcar cerrado un invariante, el verificador
+se pregunta "si revierto el fix que este test dice proteger, ¿el test falla?". Un
+`test_required` que sigue en verde con la protección removida (fixture débil, aserción
+demasiado laxa, mock que no ejercita la ruta real) es un test tautológico — el hallazgo
+sigue `UNVERIFIED`, no `PASS`, hasta que el test demuestre que realmente atrapa la
+regresión. No hace falta automatizar mutation-testing real: basta con razonar o probar
+el caso "sin el fix" una vez al cerrar.
+
+**Resumen de consumo al cerrar la corrida.** Al terminar (compuerta, aplicación
+completa, o `/orchestrator cerrar`), el director emite un resumen breve en
+`.orchestrator/trace.md`: agentes lanzados vs. omitidos (con motivo de cada omisión),
+agentes que tocaron el presupuesto por oleada o el total, y el veredicto final. No se
+mide tokens exactos por agente (no siempre disponible), pero sí la cuenta de subagentes
+y en qué fase se concentraron, para que la persona vea dónde se gastó el presupuesto de
+la corrida y pueda ajustar el alcance de la siguiente.
 
 ---
 
