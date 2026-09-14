@@ -55,20 +55,21 @@ frontmatter YAML + el cuerpo del brief como system prompt. Reglas al generarlos:
 - **Agentes que redactan** (documentation, learner) → añaden `Write, Edit`.
 - `description` rico en señales de invocación proactiva (extraído de la primera línea
   del brief).
-- **Modelo por defecto** (ajústalo si el proyecto lo pide; verifica los strings
-  vigentes, pues cambian):
+- **Modelo por defecto — se elige por la incertidumbre del encargo, no por el rol**
+    (regla en `SKILL.md` › Presupuesto de corrida). Ajústalo si el proyecto lo pide y
+    verifica los strings vigentes, pues cambian:
   - **Todos los agentes en AUDITORÍA** (incluidos architect, robustness, api,
-    security, qa) → `claude-sonnet-4-6`. La auditoría es exploración masiva de código:
+    security, qa) → `claude-sonnet-5`. La auditoría es exploración masiva de código:
     el modelo grande aquí es el principal quemador de tokens de la skill.
-  - `claude-opus-4-8` se reserva para el **director** (consolidación, Fase 2-3), el
+  - `claude-opus-5` se reserva para el **director** (consolidación, Fase 2-3), el
     **Red Team / Audit Lead** (Fase 2.5, meta-auditoría), el **Business Rules Auditor**
     (razonamiento sobre reglas implícitas y no implementadas) y para veredictos críticos
     puntuales (aislamiento de tenants, decisión de seguridad disputada) — nunca para todo
     el equipo a la vez.
-  - Ejecución y trabajo balanceado (fase de APLICACIÓN) → `claude-sonnet-4-6`.
+  - Ejecución y trabajo balanceado (fase de APLICACIÓN) → `claude-sonnet-5`.
   - Ligero / alto volumen (feedback, documentation de formato, ediciones simples) →
     `claude-haiku-4-5-20251001`.
-  - Planeación del director → `claude-opus-4-8`; reserva `claude-fable-5` solo para
+  - Planeación del director → `claude-opus-5`; reserva `claude-fable-5` solo para
     decisiones de máxima complejidad.
 - El cuerpo del archivo es el contenido del brief correspondiente, precedido de la
   instrucción "Lee `references/evidence-protocol.md` y respétalo".
