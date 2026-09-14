@@ -38,6 +38,7 @@ El verdadero core es reducido. Todo lo demás es dinámico.
 | `verification` / `qa` | QA Senior | `qa.md` | Pruebas de lógica, caja negra/blanca contra reglas de negocio; conflictos entre reglas. |
 | `security` | Seguridad | `security.md` | Inyecciones, OWASP, pentest defensivo; dueño del veredicto de aislamiento de tenants y `hard_gates`. |
 | `knowledge` / `evidence` | Retroalimentación + protocolo | `feedback.md`, `evidence-protocol.md`, `knowledge-system.md` | Ingiere memorias previas del equipo y el registro de regresiones (espejo del Aprendiz). Va primero. |
+| `compliance` | Cumplimiento Corporativo | `policy-compliance.md` | Correlaciona hallazgos, plan, cambios y aprendizajes con las políticas de la empresa. **Obligatorio y siempre último**: ninguna corrida cierra sin su veredicto. Sin corpus emite `SIN-CORPUS` y no bloquea. |
 
 ### Condicional (entra solo bajo demanda)
 

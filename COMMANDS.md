@@ -8,9 +8,9 @@ existe en este entorno, copia ese archivo o invoca la skill por lenguaje natural
 
 | Comando | Qué hace | Fases | Cuándo usarlo |
 |---|---|---|---|
-| `/orchestrator` | Flujo completo hasta la compuerta | R→0→1→2→3 | Primera corrida o corrida general: "revisa mi proyecto" |
-| `/orchestrator auditar [alcance]` | Auditoría acotada, solo lectura | R→3 | Revisar un módulo o tema concreto sin tocar nada |
-| `/orchestrator aplicar` | Aplica el plan ya aprobado | 4→5 | Después de aprobar la compuerta; rama dedicada + commits atómicos |
+| `/orchestrator` | Flujo completo hasta la compuerta | R→0→1→2→2.5→6→3 | Primera corrida o corrida general: "revisa mi proyecto" |
+| `/orchestrator auditar [alcance]` | Auditoría acotada, solo lectura | R→6→3 | Revisar un módulo o tema concreto sin tocar nada |
+| `/orchestrator aplicar` | Aplica el plan ya aprobado | 4→5→6 | Después de aprobar la compuerta; rama dedicada + commits atómicos |
 | `/orchestrator nuevo` | Entrevista greenfield + propuesta de stack | R→0(A) | Proyecto desde cero, sin código |
 | `/orchestrator verificar` | Solo verificación de lo aplicado | 5 | Revalidar tras cambios manuales o regresiones |
 | `/orchestrator estado` | Resume `.orchestrator/` sin lanzar agentes | — | Retomar una corrida: en qué quedó, huecos, qué sigue |
@@ -37,6 +37,7 @@ solo un módulo:      /orchestrator auditar <módulo>
 | `/setup-project` | Genera el `.claude/settings.json` del proyecto activando solo los plugins que su stack necesita |
 | `/sync-capabilities` | Audita plugins nuevos instalados y fusiona el mapa `references/capabilities.md` sin perder lo existente |
 | `/learn-from <ruta\|global>` | Extrae aprendizajes de un proyecto viejo (cualquier agente + docs/políticas) hacia la memoria del orquestador, por niveles proyecto/lenguaje+versión/universal |
+| `/policy-update <ruta\|revisar>` | Ingiere documentación normativa entregada por la empresa al corpus privado `company-policies/`: normaliza a entradas con ID, nivel de exigencia y procedencia, anexa sin sobrescribir (supersede, no borra). `revisar` audita el corpus sin cargar nada. Lo consume la Fase 6 |
 | `/pack-skill [--verify]` | Vuelca la memoria viva al snapshot, sincroniza comandos y regenera `~/Downloads/project-orchestrator.skill`. Correr tras cada sesión de audits para no perder aprendizajes; `--verify` solo compara sin empaquetar |
 
 ## Reglas que ningún comando salta
@@ -49,6 +50,10 @@ solo un módulo:      /orchestrator auditar <módulo>
   con tarea que lo justifique (`references/capabilities.md`, comando `/setup-project`).
 - **Salidas en `.orchestrator/`:** cada corrida queda trazada; las anteriores se
   archivan en `runs/<fecha>/`, nada se pierde.
+- **Cumplimiento obligatorio (Fase 6):** el agente de Cumplimiento Corporativo es el
+  último en correr en toda auditoría y su veredicto (`.orchestrator/40-cumplimiento.json`)
+  entra al gate. Sin corpus de políticas emite `SIN-CORPUS` y no bloquea; con una
+  `OBLIGATORIA` violada es `BLOCKING`. Se carga con `/policy-update`.
 - **Incremental por defecto:** si `.orchestrator/state.json` existe, la documentación
   del proyecto NO se regenera — solo se actualizan las secciones afectadas por el
   delta de git desde la última corrida. Regeneración completa solo si se pide
@@ -58,7 +63,7 @@ solo un módulo:      /orchestrator auditar <módulo>
 
 1. Descomprimir `project-orchestrator.skill` (ZIP) en `~/.claude/skills/`.
 2. Copiar los archivos de `commands/` (orchestrator, setup-project,
-   sync-capabilities, learn-from, pack-skill) a `~/.claude/commands/`.
+   sync-capabilities, learn-from, policy-update, pack-skill) a `~/.claude/commands/`.
 3. Reiniciar la sesión de Claude Code.
 4. `/orchestrator setup` en el proyecto para el bootstrap.
 
