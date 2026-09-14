@@ -113,6 +113,130 @@ esa versión.
   Evidencia: `app/Console/Commands/MlsRelinkPhotosS3Command.php:135` duplica
   `MlsPropertyPhoto::isImage()` (`:194-198`).
 
+## Auditoría de código muerto (dead code)
+
+Transversal a cualquier stack. El objetivo no es "cero líneas sin usar" a cualquier
+costo, sino identificar código que **ya no puede ejecutarse o ya no aporta**, con
+evidencia `ruta:línea` — nunca borrar por sospecha.
+
+### Regla de oro: verifica invocación dinámica antes de marcar
+
+El falso positivo más caro en dead code es marcar como muerto algo que se invoca por un
+mecanismo indirecto: reflexión, contenedor de inyección de dependencias (binding por
+interfaz), listener de evento registrado por string/atributo, ruta cargada desde un
+archivo de config, comando de consola registrado por convención de nombre, método mágico
+(`__call`, `__get`), job serializado y despachado por nombre de clase, hook de ciclo de
+vida del framework (boot, mount, `ngOnInit`), o test que solo lo ejerce vía mock. Antes de
+reportar "sin uso", busca el símbolo completo en el repo (no solo llamadas literales) y en
+archivos de configuración/rutas/proveedores de servicio. Si no hay certeza, clasifícalo
+como candidato con riesgo declarado, no como hallazgo cerrado.
+
+### Qué buscas
+
+- **Imports/`use` sin ninguna referencia** en el archivo (incluyendo tipos usados solo en
+  docblocks/anotaciones — esos sí cuentan como uso).
+- **Funciones, métodos y clases nunca invocados** dentro del repo ni expuestos como parte
+  de un contrato público (API, paquete, interfaz de extensión) — un método público de una
+  librería reusable no es dead code aunque no se llame internamente.
+- **Código inalcanzable**: sentencias después de un `return`/`throw`/`exit`/`break`
+  incondicional en el mismo bloque, ramas `if` cuya condición es una constante conocida
+  (`if (false)`, flag apagado permanentemente y sin plan de reactivarlo).
+- **Variables construidas y nunca consumidas** en ninguna rama posterior (ver ejemplo
+  MOD3-CV2 más abajo): señal de que una funcionalidad quedó a medio implementar.
+- **Ramas de feature flag muertas**: un flag que el código trata como variable pero que
+  en config/entorno está fijo en un único valor desde hace tiempo, dejando la rama
+  contraria inalcanzable en la práctica.
+- **Rutas, comandos de consola, colas y endpoints huérfanos**: registrados en el router o
+  en el proveedor de servicio pero sin controlador/handler activo, o cuyo handler no hace
+  nada relevante (stub olvidado).
+- **Bloques comentados de código** (no explicaciones, código real comentado) que
+  sobreviven varios commits — indican incertidumbre no resuelta, no documentación.
+- **Archivos huérfanos**: migraciones, seeds, vistas o assets que ningún otro archivo
+  referencia y que el manifiesto de build tampoco carga.
+
+### Apoyo con herramientas (si el proyecto ya las tiene o son baratas de correr)
+
+No asumas que están instaladas — verifica en el manifiesto (`composer.json`,
+`package.json`, `pyproject.toml`, `go.mod`) antes de sugerir instalarlas como parte del
+hallazgo. Úsalas como apoyo de cobertura, nunca como sustituto de leer el código:
+
+- **PHP**: `phpstan` (regla `unused`/dead code si el nivel lo activa), `psalm
+  --find-unused-code`, `rector` con reglas de dead code (modo dry-run).
+- **JS/TS**: `ts-prune`, `knip`, `depcheck` (dependencias sin uso), ESLint
+  `no-unused-vars`/`no-unreachable`.
+- **Python**: `vulture`.
+- **Go**: `staticcheck`, `deadcode`.
+- **Java/Kotlin**: inspecciones del IDE o PMD (`UnusedPrivateMethod`,
+  `UnusedLocalVariable`).
+
+Un hallazgo de herramienta sin lectura manual del contexto (¿es API pública? ¿se invoca
+por reflexión?) es un candidato, no un hallazgo — la verificación manual es obligatoria
+antes de reportarlo.
+
+### Clasificación y coordinación
+
+Severidad por defecto **LOW/DESIGN-DEBT** (no bloquea el gate) salvo que el código muerto
+oculte un bug activo (p. ej. una rama de manejo de error que nunca se ejecuta porque la
+condición previa la hace inalcanzable — ahí escala y se coordina con Seguridad/Robustez).
+En modo APLICACIÓN, eliminar código muerto es un cambio R1 (bajo riesgo, ver
+`risk-levels.md`) salvo que el símbolo sea parte de un contrato público, en cuyo caso sube
+a R2 y se declara en el plan como posible cambio rompiente.
+
+## Auditoría de reutilización, simplificación y eficiencia (DRY)
+
+Transversal a cualquier stack, igual que el dead code. El objetivo no es abstraer todo
+lo repetido a cualquier costo, sino señalar duplicación que **ya cuesta** (dos sitios que
+hay que tocar en sincronía cuando cambia una regla) o ineficiencia **real y medible**
+(no micro-optimización especulativa). Ver también la regla de over-engineering de más
+arriba: extraer una abstracción que no resuelve un problema concreto es el error simétrico.
+
+### Qué buscas
+
+- **Duplicación de lógica de negocio** (no solo literales): dos métodos que calculan la
+  misma regla con variables distintas, dos validaciones equivalentes escritas por separado,
+  un mapeo de campos repetido entre un `Command` y un `Job`/`Listener`. Señal: bloques con
+  la misma secuencia de condiciones/transformaciones en archivos distintos.
+- **Constantes/arrays/listas literales repetidas** (ya cubierto arriba en "Checks de
+  convenciones específicas" — trátalo como caso particular de este chequeo, no aparte).
+- **Funciones casi-idénticas** (`copy-paste con una variable cambiada`) que deberían
+  parametrizarse o compartir un helper — sin forzar una interfaz genérica si solo hay dos
+  usos y no hay evidencia de un tercero próximo.
+- **Simplificación de flujo**: condicionales anidados que un early-return aplana,
+  ramas `if/else` que retornan el mismo valor transformado y pueden colapsarse, guard
+  clauses ausentes que inflan la indentación sin aportar lectura.
+- **Ineficiencia con evidencia, no intuición**: recomputar dentro de un bucle un valor
+  que no cambia entre iteraciones, N+1 de consultas donde una sola consulta con `with`/
+  `join`/`select IN` basta (coordina con Base de Datos si es de datos), reconstruir una
+  colección ya calculada en vez de reutilizarla. No reportes complejidad algorítmica en
+  abstracto sin un caso de uso real que la vuelva relevante (evita el over-engineering
+  inverso: "esto podría ser O(n) en vez de O(n²)" sin que el tamaño de `n` en producción
+  lo justifique).
+
+### Apoyo con herramientas (si el proyecto ya las tiene o son baratas de correr)
+
+No asumas que están instaladas — verifica el manifiesto antes de sugerirlas. Como con
+dead code, un hallazgo de herramienta es un candidato, no un hallazgo: la duplicación
+detectada por firma textual puede ser una coincidencia legítima (dos tests con el mismo
+fixture, dos DTOs con la misma forma por casualidad de dominio).
+
+- **PHP**: `phpcpd` (copy-paste detector), reglas de complejidad de `phpmd`/`phpstan`.
+- **JS/TS**: `jscpd`, `eslint-plugin-sonarjs` (`no-identical-functions`,
+  `cognitive-complexity`).
+- **Python**: `pylint` (`duplicate-code`/`R0801`), `radon` (complejidad ciclomática).
+- **Multi-lenguaje**: `jscpd` corre sobre casi cualquier extensión y es la opción más
+  barata cuando el proyecto mezcla stacks.
+
+### Clasificación y coordinación
+
+Severidad por defecto **LOW/DESIGN-DEBT** salvo que la duplicación sea de una **regla de
+negocio con riesgo de divergencia** (dos copias que alguien puede editar sin sincronizar
+la otra, p. ej. una validación de negocio o un cálculo financiero) — ahí sube a MEDIUM y
+se coordina con el Arquitecto (si toca límites/capas) o con QA (si el drift ya causó un
+bug). Eficiencia con impacto medible en producción (no especulativo) se coordina con
+Performance en vez de reportarse aparte. En modo APLICACIÓN, extraer un helper/función
+compartida es R1 salvo que el símbolo duplicado sea parte de un contrato público, igual
+que en dead code.
+
 ## Modos
 
 - **AUDITORÍA** (solo lectura): informe de desviaciones de convención con evidencia

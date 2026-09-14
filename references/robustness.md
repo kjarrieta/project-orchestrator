@@ -37,7 +37,11 @@ la documentación oficial de la versión detectada, nunca por analogía con otro
 1. **Manejo de errores.** Rastrea los `try/catch`/equivalentes del proyecto. Marca
    cada captura vacía o que traga el error, cada excepción genérica que oculta la
    causa, cada camino de error sin manejar, y cada fuga de detalle interno al usuario.
-   Cada uno es un [OBSERVADO] con su ruta:línea.
+   Cada uno es un [OBSERVADO] con su ruta:línea. Para la fuga de detalle interno, el
+   grep ejecutable y el criterio de fallo concretos están en `security.md`, sección
+   "Checklist de detección: fuga de detalle interno en respuestas y logs" (aprendido de
+   Cyber Neo CN-014: 39 puntos de `app/Http/Controllers/Api/` devolvían `$e->getMessage()`
+   al cliente, anulando el handler central de `bootstrap/app.php`).
 2. **Integridad transaccional.** Identifica cada operación multi-paso que escribe en
    BD. Verifica que corra en una transacción con rollback ante fallo. Una escritura
    compuesta sin transacción —o un rollback que no cubre todos los pasos— es un

@@ -50,6 +50,17 @@ Con criterio OWASP (File Upload Cheat Sheet):
   (es trivial de falsificar). Allow-list de extensiones del negocio.
 - **Renombra** con un valor generado por la app (UUID); nunca uses el nombre del
   usuario. Cuidado con dobles extensiones y null bytes.
+- **La extensión final del archivo guardado también debe derivarse del MIME verificado
+  por contenido, no del nombre original del cliente.** Validar el contenido con
+  `getMimeType()` (o equivalente) y luego tomar la extensión de `pathinfo($nombreOriginal,
+  PATHINFO_EXTENSION)` dejan una brecha: un archivo con contenido válido (p. ej. un JPEG
+  polyglot) guardado con una extensión peligrosa del lado del cliente (`.html`, `.svg`)
+  puede ejecutarse como XSS almacenado si el bucket/CDN sirve por extensión. Verificar:
+  ```bash
+  grep -rn "getClientOriginalName().*PATHINFO_EXTENSION\|pathinfo(.*getClientOriginalName" app/
+  ```
+  Remediación: mapear la extensión desde el MIME ya validado (`['image/jpeg' => 'jpg', ...]`),
+  nunca desde el nombre que envía el cliente.
 - **Almacena fuera del webroot** (idealmente en el servicio de objetos), con
   límites de tamaño máximo y mínimo, y sin permiso de ejecución.
 - Escanea cuando aplique; valida ZIPs antes de descomprimir (anti zip-bomb).
@@ -124,6 +135,31 @@ evalúa: ¿maneja fallos del proveedor?, ¿reintenta con backoff+jitter o martil
   ser intencional; la falta de traza no. Verificar: todo `continue` en `foreach ($items)` de un
   servicio de sync — ¿hay contador de descartes + `Log::` con el desglose? Evidencia:
   `app/Services/Mobilia/SyncMobilia/SyncMobiliaJwtPropertyService.php:242`. Ledger: REG-117.
+
+### Checklist ejecutable de transporte (FTP/TLS) — cierra el hueco de "preferir SFTP" sin verificación
+
+El conocimiento fijo de este brief ya decía "preferir SFTP frente a FTP plano", pero sin
+comando ni criterio de fallo no se ejecutaba (Cyber Neo CN-008: `config/filesystems.php`
+tenía `'ssl' => true` **comentado** en el disco FTP del proveedor MLS, sin que ninguna
+corrida previa lo señalara).
+
+```bash
+grep -n "'driver' => 'ftp'" -A 8 config/filesystems.php
+```
+
+Por cada disco `ftp` encontrado, verificar en las líneas siguientes:
+- Si no existe la clave `'ssl'`, o existe comentada, o vale `false`: el tráfico —incluidas
+  las credenciales del proveedor— cruza la red en texto plano. `HIGH`, `CWE-319`.
+- Si existe `'ssl' => env('FTP_SSL', true)` (o equivalente forzado a `true`): PASS.
+- Si el proveedor no soporta FTPS (confirmar con el proveedor antes de escalar a SFTP como
+  requisito contractual), documentar el riesgo aceptado explícitamente en el hallazgo — no
+  basta con dejarlo sin mención.
+
+Remediación mínima sin cambiar de protocolo:
+```php
+'ssl' => (bool) env('FTP_SSL', true),
+'timeout' => 30,
+```
 
 ## En modo APLICACIÓN
 

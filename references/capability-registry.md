@@ -46,7 +46,7 @@ requiere (ver `routing.md`, resolución de capacidades).
 
 | Capacidad | Agente | Brief | Foco | Se activa cuando |
 |---|---|---|---|---|
-| `conventions` | Revisor de Convenciones | `conventions-reviewer.md` | Convención de capas del stack e idioms del framework; anti-patrones sin over-engineering. | hay código que aplicar/revisar |
+| `conventions` | Revisor de Convenciones | `conventions-reviewer.md` | Convención de capas del stack e idioms del framework; anti-patrones sin over-engineering; código muerto (imports/métodos/clases/rutas sin uso); DRY (duplicación, simplificación, eficiencia). | hay código que aplicar/revisar |
 | `database` | Base de Datos | `database.md` | Integridad, optimización, flujo de datos, aislamiento multi-tenant. | el pedido toca esquema, datos o consultas |
 | `robustness` | Arquitecto de Desarrollo | `robustness.md` | Errores/try-catch, transacciones y rollback, idempotencia, solapamiento de reglas. | hay transacciones, errores, idempotencia en juego |
 | `api` | APIs | `api.md` | Contratos sin regresiones (diff vs línea base), RFC 9457, OWASP API; orquesta la apificación. | hay contratos de API o apificación |
@@ -104,6 +104,40 @@ de un proyecto concreto".
 4. La capacidad `systems-architecture` no agrega un agente permanente: el Arquitecto la
    activa cuando el problema es distribuido. Misma idea para toda capacidad extendida —
    preferimos extender un agente del core a crear uno nuevo permanente.
+
+## Adenda 2026-09-02 — SCA/cadena de suministro y prueba `--no-dev`
+
+Aprendido de una auditoría externa (Cyber Neo) que encontró categorías sin dueño
+explícito en este registro. No son agentes nuevos: son capacidades que ya vivían
+implícitamente en `security` y `devops` y ahora tienen checklist ejecutable en sus briefs.
+
+| Capacidad | Agente que la provee | Brief / sección | Se activa cuando |
+|---|---|---|---|
+| `dependency-audit` / SCA (CVE de `composer.lock`/`package-lock.json`, calibración de severidad por explotabilidad, dependency confusion en repos privados, secretos en archivos de notas del proyecto) | Seguridad | `security.md`, "Checklist de auditoría: dependencias y cadena de suministro (SCA)" | el proyecto tiene `composer.lock`/`package-lock.json` — prácticamente toda corrida no trivial |
+| `deploy-smoke-no-dev` (provider de `require-dev` sin condición de entorno; scripts de setup con `migrate --force` sin gate) | Production/DevOps | `devops.md`, "Checklist ejecutable: `--no-dev` como prueba de arranque" y "scripts de setup/deploy sin gate de entorno" | el proyecto usa Composer y tiene paquetes en `require-dev` con provider propio (Telescope, Debugbar, IDE Helper) |
+| `transport-security` (FTP/TLS explícito, `sslmode` de BD, cabeceras HTTP de seguridad) | Seguridad (cabeceras HTTP, `sslmode`) / Integraciones (FTP) | `security.md`, checklist de cabeceras y `sslmode`; `integrations.md`, checklist de transporte FTP/TLS | el proyecto tiene un disco `ftp` en `config/filesystems.php`, o sirve HTML autenticado, o usa PostgreSQL |
+
+## Adenda 2026-09-10 — Auditoría de código muerto (dead code)
+
+No es un agente nuevo: es una extensión de `conventions` (Revisor de Convenciones), que
+ya audita "salud de las clases". Se detalla aparte porque su checklist es transversal a
+stacks y con reglas propias de falsos positivos (código invocado por reflexión/DI/eventos
+por string, no por llamada estática).
+
+| Capacidad | Agente que la provee | Brief / sección | Se activa cuando |
+|---|---|---|---|
+| `dead-code-audit` (imports/`use` sin uso, funciones/métodos/clases nunca invocados, código inalcanzable tras `return`/`throw`, variables construidas y no consumidas, ramas de feature-flag permanentemente apagadas, rutas/endpoints/comandos huérfanos, bloques comentados) | Revisor de Convenciones | `conventions-reviewer.md`, "Auditoría de código muerto (dead code)" | prácticamente toda corrida no trivial en modo AUDIT o REFACTOR; obligatoria si el pedido menciona limpieza, deuda técnica o "que quede escalable" |
+
+## Adenda 2026-09-10 — Reutilización, simplificación y eficiencia (DRY)
+
+No es un agente nuevo: es otra extensión de `conventions` (Revisor de Convenciones), en
+la misma línea que la de código muerto. Cubre duplicación de lógica de negocio (no solo
+literales), funciones casi-idénticas, oportunidades de simplificación de flujo, e
+ineficiencia con evidencia real (no micro-optimización especulativa).
+
+| Capacidad | Agente que la provee | Brief / sección | Se activa cuando |
+|---|---|---|---|
+| `reuse-simplification-audit` (duplicación de lógica de negocio entre archivos, constantes/listas repetidas, funciones casi-idénticas, condicionales que un early-return simplifica, recomputación evitable en bucles, N+1 sustituible por una sola consulta) | Revisor de Convenciones | `conventions-reviewer.md`, "Auditoría de reutilización, simplificación y eficiencia (DRY)" | prácticamente toda corrida no trivial en modo AUDIT o REFACTOR; obligatoria si el pedido menciona DRY, duplicación, "que quede escalable" o reutilización |
 
 ## Regla final
 

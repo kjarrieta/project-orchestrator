@@ -39,6 +39,57 @@ si la capacidad está disponible (`capabilities.md`).
   datos y de configuración. Un cambio sin plan de reversa aprobado se separa y no se
   aplica junto al resto (regla de Fase 4 del `SKILL.md`).
 
+## Checklist ejecutable: `--no-dev` como prueba de arranque
+
+Hueco de capacidad detectado por auditoría externa Cyber Neo 2026-09-02 (CN-006): un
+paquete de `require-dev` puede tener su **provider** registrado sin condición de entorno
+en `bootstrap/providers.php` (o vía `AppServiceProvider::register()`). El riesgo no es
+solo que la herramienta de diagnóstico quede activa en producción — es que la app **deja
+de arrancar** en cualquier despliegue que use el comando estándar y más seguro:
+
+```bash
+composer install --no-dev --no-interaction
+php artisan config:clear && php artisan route:list   # o levantar el server real
+```
+
+Criterio de fallo: `Class "..." not found` al arrancar. Es lint verificable — correr este
+comando en un checkout limpio o en CI antes de cualquier despliegue. Complementario:
+
+```bash
+grep -n "TelescopeServiceProvider\|DebugbarServiceProvider\|IdeHelperServiceProvider" bootstrap/providers.php
+```
+
+Si alguno de esos providers aparece sin envolver en un condicional de entorno
+(`$this->app->environment('local')`, `class_exists(...)`), es un hallazgo `HIGH`
+independientemente de si el `'enabled'` del paquete ya tiene default seguro — son dos
+defectos distintos que se corrigen juntos: (1) el gate de acceso a la herramienta, y (2) el
+registro condicional del provider. El orden importa: condicionar el registro **antes** de
+endurecer cualquier otro control de despliegue, porque hoy `--no-dev` tumba la app.
+
+## Checklist ejecutable: scripts de setup/deploy sin gate de entorno
+
+Detectado en el mismo hallazgo externo (CN-029): un script de conveniencia para bootstrap
+local (`composer.json` → `scripts.setup`, un `Makefile`, un `deploy.sh`) que encadena
+`artisan migrate --force` es peligroso si alguien lo copia o lo reutiliza contra un entorno
+real — `--force` suprime la confirmación que Laravel exige en producción antes de migrar.
+
+```bash
+grep -n "migrate --force\|migrate:fresh\|migrate:refresh" composer.json Makefile *.sh 2>/dev/null
+```
+
+Criterio de fallo: el comando aparece en un script sin verificación previa de `APP_ENV`
+(ni un comentario explícito de "solo bootstrap local" en el propio script/README).
+Remediación: gatear el script tras `[ "$APP_ENV" = "local" ] || exit 1` (o equivalente), o
+quitar `--force` y dejar que el operador confirme.
+
+## Checklist informativo: ausencia de pipeline CI/CD con controles de seguridad
+
+Si no existe `.github/workflows/`, `.gitlab-ci.yml`, `Jenkinsfile` ni equivalente, todo
+control de este brief (composer/npm audit, `--no-dev`, tests, Pint) depende de que alguien
+lo recuerde a mano. Repórtalo como `INFO`/`LOW` con la recomendación de un workflow mínimo:
+`composer install --no-dev` (detecta el hueco anterior) + `composer audit` + `npm audit
+--omit=dev` + `./vendor/bin/pint --test` + `php artisan test`, corrido en cada PR.
+
 ## Modos
 
 - **AUDITORÍA** (solo lectura): informe de riesgos de despliegue con evidencia y su

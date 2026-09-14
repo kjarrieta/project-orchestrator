@@ -53,6 +53,24 @@ Una capacidad que ninguna subtarea usa no se activa. Un agente cuya capacidad no
 requerida se omite **con justificación** en la ficha (la regla de "justifica los
 omitidos" del `SKILL.md`).
 
+### Disparador por palabra clave (independiente del modo)
+
+`dead-code-audit` (`capability-registry.md`, Adenda 2026-09-10) es la excepción a "solo
+AUDIT/REFACTOR la activan por defecto": si el pedido menciona explícitamente **"código
+muerto"**, **"dead code"**, **"limpieza"**, **"deuda técnica"** o equivalentes ("que
+quede escalable", "sanear el proyecto"), el director activa la capacidad **aunque el
+modo detectado sea otro** (IMPLEMENT, DEBUG, MIGRATE, HARDEN). Es el mismo mecanismo de
+resolución de capacidades de arriba — la palabra clave es la evidencia de que la
+subtarea existe, no una excepción al algoritmo. No dispara un agente nuevo: reutiliza al
+Revisor de Convenciones ya activado o lo suma al equipo si el resto del pedido no lo
+había requerido.
+
+Mismo mecanismo para `reuse-simplification-audit` (`capability-registry.md`, Adenda
+2026-09-10): si el pedido menciona **"DRY"**, **"don't repeat yourself"**,
+**"duplicación"**, **"código repetido"**, **"simplificar"** o **"reutilización"**, el
+director activa esa capacidad aunque el modo detectado sea otro. Tampoco dispara un
+agente nuevo — reutiliza al Revisor de Convenciones.
+
 ## 3. Regla don't-delegate (eficiencia de tokens)
 
 No todo merece un subagente. Antes de lanzar uno, el director se pregunta: **¿delegar
@@ -74,11 +92,13 @@ corren, sino cuánta incertidumbre resolvió cada uno.
 Cada agente recibe el **mínimo** modelo y el **mínimo** conjunto de herramientas que su
 subtarea exige:
 
-- **Modelo por coste del trabajo** (ya en `SKILL.md`): exploración → modelo medio; el
-  modelo grande se reserva para consolidación, veredictos críticos y Red Team. Jamás
-  todo el equipo en el modelo máximo. Los IDs concretos de modelo se nombran en un solo
-  lugar (la ficha de la corrida), no dispersos por los briefs — así cambiar de modelo
-  no toca los agentes.
+- **Modelo por incertidumbre** (regla en `SKILL.md`): la misma incertidumbre no resuelta
+  que decide CUÁNTOS agentes lanzar decide DE QUÉ MODELO son. Mecánico → ligero;
+  exploración de parcela mapeada y aplicación de plan aprobado → medio (default); alta
+  incertidumbre o consecuencia irreversible (consolidación, veredictos críticos, Red Team)
+  → grande. Sin incertidumbre nombrable no se sube de modelo, y jamás todo el equipo en el
+  máximo. Los IDs concretos se nombran en un solo lugar (la ficha de la corrida), no
+  dispersos por los briefs — así cambiar de modelo no toca los agentes.
 - **Herramientas por subtarea (tool routing).** Un agente de solo diagnóstico recibe
   `Read, Grep, Glob` y nada más. Un agente de performance de PostgreSQL necesita
   `filesystem, git, psql, EXPLAIN ANALYZE`; **no** necesita `browser` ni herramientas
@@ -104,13 +124,19 @@ La regla:
 ```
 Pregunta simple → 1 agente barato → confianza alta → STOP.
 Zona con confianza < umbral → agregar la capacidad que la resuelve → re-medir.
+Si la duda persiste con la capacidad ya presente → subir el MODELO de ese agente,
+no clonar más agentes del mismo tamaño → re-medir.
 ```
 
 Esto invierte el default peligroso ("para arquitectura, lanzar siempre 5 agentes") por
 uno económico ("lanza 1; agrega agentes solo donde la confianza no alcanza"). El umbral
 no es una fórmula rígida: es un criterio — un boundary crítico (seguridad, integridad,
 tenant, concurrencia) exige confianza alta y escala agresivo; una preferencia estética
-no escala nada.
+no escala nada. El escalamiento tiene dos ejes y se aplican en este orden: primero la
+**capacidad** que falta (otro dominio, otra herramienta), después el **modelo** de quien ya
+tiene la capacidad correcta pero no logra cerrar la duda. Bajar también es escalar: una
+dimensión que llegó con confianza alta en la primera pasada no merece un modelo grande en
+la siguiente.
 
 Enlaza con el bucle de validación del `SKILL.md`: una salida que no pasa validación es
 confianza baja por definición y dispara reintento acotado o [HUECO], nunca avance a

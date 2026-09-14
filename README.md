@@ -28,7 +28,7 @@ de inventar.
 |---|---|
 | **Retroalimentación** | Corre primero. Ingiere memorias previas del equipo y el registro de regresiones para aprovechar lo ya sabido y hacerlo cumplir. |
 | **Arquitecto** | Arquitectura, huecos de flujo, redundancia, clean code, SOLID, servicios escalables y concurrencia. |
-| **Revisor de Convenciones** | Convención de capas del stack e idioms del framework; anti-patrones de capa sin caer en over-engineering. |
+| **Revisor de Convenciones** | Convención de capas del stack e idioms del framework; anti-patrones de capa sin caer en over-engineering; código muerto y DRY (duplicación/simplificación/eficiencia). |
 | **Arquitecto de Desarrollo** | Robustez de ejecución: manejo de errores, transacciones con rollback, idempotencia, solapamiento de reglas/notificaciones. |
 | **Base de Datos** | Integridad, optimización, relaciones, flujo de datos, aislamiento multi-tenant. |
 | **APIs** | Consistencia de contratos en producción, errores RFC 9457, seguridad OWASP API, y apificación de apps nuevas. |
