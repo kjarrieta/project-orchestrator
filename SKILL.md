@@ -20,6 +20,38 @@ aprobación humana antes de que nada se aplique.
 subagentes en `.claude/agents/` y propone los hooks): sigue `references/setup.md` si
 detectas que falta o cambió de versión.
 
+## Contrato mínimo de entorno (la skill no asume el host)
+
+Esta skill corre en Claude Code pero también en otros agentes. Fuera de Claude Code **no
+se carga `~/.claude/CLAUDE.md`, ni los comandos de `commands/`, ni la herramienta de
+subagentes**: el único artefacto que llega es este archivo. Por eso las invariantes de las
+que la skill depende viven aquí abajo, no en la configuración del host.
+
+**Precedencia:** si el host ya impone una política equivalente (p. ej. las políticas
+globales `P-CHECKPOINT-01`, `P-AGENTS-01`, `P-MEMORY-01`, `P-TOKENS-01` de Claude Code),
+**esa manda y esto no se duplica**. Lo de abajo es el piso cuando no hay nada.
+
+- **I1 — Memoria antes que redescubrimiento.** Antes de explorar, se lee lo que corridas
+  anteriores ya dejaron escrito (`.orchestrator/`). Redescubrir lo documentado es un
+  desvío, no una precaución. La compuerta que lo hace cumplir es el paso 2 de la Fase 0.
+- **I2 — Checkpoint por saturación de contexto.** Cuando el contexto llega a ~60-75% de la
+  ventana se resume y se descarta detalle ya consolidado; a ~75-90% el checkpoint es
+  obligatorio. El disparador es el tamaño del contexto, nunca el commit. Si el host no
+  ofrece una herramienta de checkpoint, el estado se escribe en `.orchestrator/state.json`
+  y `.orchestrator/trace.md`: qué se hizo, dónde quedó, qué sigue.
+- **I3 — Delegación dimensionada por incertidumbre.** Regla completa en «Presupuesto de
+  corrida». **Si el host no tiene subagentes**, el director ejecuta las fases él mismo, en
+  secuencia, una parcela por vez y con checkpoint entre parcelas — pero **no elimina
+  ninguna fase ni ninguna compuerta**. Perder el paralelismo es aceptable; perder la
+  compuerta humana o la meta-auditoría, no.
+- **I4 — Cero suposiciones.** Toda afirmación con evidencia `ruta:línea` o doc oficial de
+  la versión exacta. Sin evidencia: `[HUECO]` y se pregunta.
+- **I5 — La compuerta humana no es negociable.** Ningún cambio R3/R4 se aplica sin
+  aprobación explícita de una persona, en ningún host, con o sin herramientas.
+
+Un host que no permita cumplir I4 o I5 no puede correr los modos de aplicación: se limita
+a los de diagnóstico y lo declara al abrir la corrida.
+
 ## La ley: cero suposiciones
 
 Ningún agente supone nada: toda afirmación se apoya en un archivo real leído en esta
@@ -97,17 +129,26 @@ introdujo suposiciones y viene en formato conciso. Encima de este bucle, una cap
 ## Presupuesto de corrida (obligatorio — la auditoría es lo más caro)
 
 - **Mapa único:** antes de lanzar auditores, UN agente barato (modelo ligero, solo
-  lectura) construye `project-memory/00-mapa.md` con módulos y archivos clave por dominio.
+  lectura) construye `.orchestrator/project-memory/00-mapa.md` con módulos y archivos clave por dominio.
   Cada auditor recibe SU parcela y lee solo esos archivos: nadie explora el repo completo
   desde cero, y menos doce veces.
 - **Oleadas:** máximo 4 auditores por oleada; los demás solo si el pedido o los hallazgos
   de la primera oleada los justifican.
-- **Modelo por fase:** auditoría exploratoria → modelo medio; el modelo grande se reserva
-  para consolidación y veredictos críticos (seguridad, tenants). Jamás todo el equipo en
-  el modelo máximo.
+- **Modelo por incertidumbre, no por rol ni por comodidad:** dimensiona cada subagente
+  por la incertidumbre que debe resolver. Trabajo mecánico (mapa, inventario, extracción,
+  verificar presencia de un patrón) → modelo ligero; auditoría de una parcela ya mapeada y
+  aplicación de un plan ya aprobado → modelo medio (el default); alta incertidumbre o
+  consecuencia irreversible (arquitectura, seguridad, integridad de datos, tenants,
+  consolidación, Red Team, compuerta) → modelo grande. Si no puedes nombrar la
+  incertidumbre concreta que justifica subir de modelo, no lo subas. Jamás toda una oleada
+  en el modelo máximo: el grande consolida y decide, no lee.
 - **Informes acotados:** máximo ~120 líneas; hallazgos repetitivos se agrupan con conteo
   y un ejemplo. A cada subagente solo su brief, la ficha, su alcance y las salidas de las
   que depende — nunca el historial entero.
+- **Salida callada y lectura por rango:** las salidas de herramientas son lo que más
+  vuelve a entrar en contexto. Comandos con `-q`/`--quiet`/`--no-ansi` y acotados
+  (`| tail -n`, `grep -c`), y dentro de una parcela se relee **por rango**, nunca el
+  archivo entero: citar `ruta:línea` la primera vez evita la segunda lectura.
 - **Reanudación a nivel de paso:** un `.orchestrator/audit/<agente>.md` que ya existe y
   pasa validación NO se relanza. `state.json` guarda por agente qué módulos quedaron
   auditados y qué ítems se aplicaron; al retomar, cada agente reanuda desde su último
@@ -125,15 +166,19 @@ introdujo suposiciones y viene en formato conciso. Encima de este bucle, una cap
   tokens. Complementa, sin sustituir, el checkpoint de estado (`remember`, política global
   P-CHECKPOINT-01 si el entorno la tiene).
 
+Catálogo completo de fugas de tokens, su diagnóstico y la disciplina de escritura de
+los informes: **`references/token-budget.md`**. Léelo antes de dimensionar una corrida
+grande o de justificar un subagente extra.
+
 ---
 
 ## Fase R — Retroalimentación (siempre primero)
 
 Lanza al agente de Retroalimentación (`references/feedback.md`) en solo lectura para
 ingerir el aprendizaje que el equipo ya tiene, normalizado con procedencia y deduplicado.
-Carga primero `project-memory/regression-ledger.json` y el `policy-index` si existen, y
-entrega a cada agente su rebanada por dominio/ruta. Best-effort: usa lo accesible, reporta
-lo que no. Nada ingerido se vuelve canónico sin compuerta.
+Carga primero `.orchestrator/project-memory/regression-ledger.json` y el `policy-index`
+si existen, y entrega a cada agente su rebanada por dominio/ruta. Best-effort: usa lo
+accesible, reporta lo que no. Nada ingerido se vuelve canónico sin compuerta.
 
 ## Fase 0 — Intake y detección de contexto
 
@@ -150,28 +195,52 @@ respuestas propones stack justificado contra doc oficial; después el Frontend c
 entrevista de diseño.
 
 **Rama B — Proyecto existente:**
-2. **Detecta el stack leyendo manifiestos reales** (`composer.json`, `package.json`,
+
+2. **COMPUERTA INCREMENTAL — este paso va PRIMERO y puede cerrar la Fase 0 entero.** No
+   detectes nada hasta haberlo ejecutado. Es una secuencia, no una advertencia:
+
+   ```
+   a. Resuelve la raíz:  ORCH_ROOT = $(git rev-parse --show-toplevel)  (si no hay git:
+      el directorio del proyecto que la persona abrió). TODA ruta de esta skill se
+      resuelve desde ahí: $ORCH_ROOT/.orchestrator/...  Nunca relativa al cwd.
+   b. ¿Existen los tres?  .orchestrator/00-ficha-de-hechos.md
+                          .orchestrator/project-memory/
+                          .orchestrator/state.json
+      NO (falta alguno) → hay que descubrir: sigue a los pasos 3-5.
+      SÍ                → continúa en (c). NO ejecutes los pasos 3-5.
+   c. Lee state.json y toma su commit. Calcula el delta:
+      git diff --name-only <commit>..HEAD
+      y compara los hashes de manifiestos/lockfiles que guarda state.json.
+   d. Delta VACÍO y hashes iguales → reutiliza ficha y memoria tal cual. Salta a los
+      pasos 6-9 con el alcance que pidió la persona; la Fase 0 termina ahí.
+   e. Delta NO vacío → lee la ficha y la memoria existentes, y actualiza SOLO las
+      secciones que tocan los archivos del delta (ediciones puntuales; jamás regeneración
+      completa). La auditoría de la Fase 1 se acota a ese delta más lo que el pedido
+      nombre. Los módulos que el delta no tocó no se releen ni se reauditan.
+   f. Registra el resultado en la traza (obligatorio, ver abajo).
+   ```
+
+   **Los pasos 3, 4 y 5 corren SOLO si (b) dio NO.** Si ya hay memoria, el stack, las
+   versiones, el modelo de tenants y el estado de apificación se leen de la ficha —
+   relanzar un subagente a redescubrirlos es un desvío que se anota en la traza.
+
+3. **Detecta el stack leyendo manifiestos reales** (`composer.json`, `package.json`,
    `pom.xml`, `*.csproj`, `pyproject.toml`, `go.mod`, Dockerfiles, migraciones). **Fija
    versiones exactas** desde el lockfile (no "Laravel": "Laravel 11.x según composer.lock").
-3. **Fija las fuentes oficiales** por versión: la única autoridad citable. Versión no
-   confirmada = [HUECO].
-4. **Modelo multiempresa y estado de apificación**: determínalos leyendo esquema y código.
+4. **Fija las fuentes oficiales** por versión: la única autoridad citable. Versión no
+   confirmada = [HUECO]. **Modelo multiempresa y estado de apificación**: determínalos
+   leyendo esquema y código.
 5. **Puebla la memoria de proyecto** (`.orchestrator/project-memory/`): arquitectura,
-   módulos, reglas de negocio, contratos y modelo de tenants. En corridas siguientes el
-   director **lee esa memoria en vez de redescubrir**; Documentación la mantiene.
+   módulos, reglas de negocio, contratos y modelo de tenants. Documentación la mantiene.
 
-   **Corridas incrementales (obligatorio).** Al cerrar se guarda `.orchestrator/state.json`
-   con fecha, commit (`git rev-parse HEAD`) y hashes de manifiestos/lockfiles. Al iniciar
-   la Fase 0, si existen ficha + `project-memory/` + `state.json`, **no redescubras**:
-   calcula el delta (`git diff --name-only <commit>..HEAD` + hashes) y —
-   - **sin cambios** → reutiliza ficha y memoria tal cual; pasa directo al alcance del pedido;
-   - **con cambios** → actualiza SOLO las secciones afectadas por los archivos del delta
-     (ediciones puntuales, jamás regeneración completa) y acota la auditoría a ese delta
-     más lo que el pedido nombre.
+   Al cerrar la corrida se guarda `.orchestrator/state.json` con `schema_version`, fecha,
+   commit (`git rev-parse HEAD`) y hashes de manifiestos/lockfiles — es lo que hace
+   posible la compuerta (2) la próxima vez. Una corrida que no escribe `state.json`
+   condena a la siguiente a redescubrir.
 
-   La documentación solo se regenera completa si la persona lo pide o si `state.json`
-   falta o está corrupto. Reescribir lo ya documentado es gasto de tokens y un desvío que
-   se anota en la traza.
+   La documentación solo se regenera completa si la persona lo pide explícitamente.
+   `state.json` ausente o ilegible **no** autoriza a borrar ni reescribir la memoria
+   existente: ver «Compatibilidad con proyectos que ya corrieron la skill».
 
 **Común a ambas ramas:**
 6. **Carga la memoria global por lenguaje** y revalídala contra la versión exacta
@@ -186,8 +255,47 @@ entrevista de diseño.
    necesita, justificando los omitidos. Un cambio de una vista no despierta al de BD; una
    migración no despierta al de Frontend.
 
+### Compatibilidad con proyectos que ya corrieron la skill (obligatoria)
+
+Un proyecto con `.orchestrator/` de una versión anterior **conserva todo su trabajo**. La
+migración es por completado, nunca por regeneración:
+
+- **`state.json` viejo no es `state.json` corrupto.** Si le faltan campos nuevos
+  (`schema_version`, hashes, checkpoints por agente), trátalo como `schema_version: 1`:
+  usa el `commit` que sí tiene para calcular el delta y **completa** los campos que
+  falten al cerrar la corrida. Solo es corrupto si no parsea o no tiene commit; y aun
+  entonces la salida es **reconstruir `state.json` desde `git rev-parse HEAD` y la memoria
+  existente**, no borrar la memoria.
+- **Memoria fuera de sitio.** Si no existe `.orchestrator/project-memory/` pero sí hay
+  `project-memory/` en la raíz (rutas de versiones anteriores), **adóptala**: muévela bajo
+  `.orchestrator/` y déjalo anotado en la traza. Jamás crear una memoria vacía al lado y
+  redescubrir.
+- **Sin `state.json` pero con ficha y memoria.** No es un proyecto nuevo. Reconstruye
+  `state.json` con el HEAD actual, marca el delta como desconocido y acota la auditoría a
+  lo que el pedido nombre — pidiendo confirmación si la persona espera cobertura completa.
+  La ficha y la memoria se reutilizan y se corrigen puntualmente.
+- **El backlog no se pierde.** `10-plan-consolidado.md` es acumulativo (ver Fase 2): los
+  ítems heredados se re-verifican contra el código actual y solo salen cuando se comprueban
+  `RESUELTO` o la persona los acepta como deuda en compuerta.
+- **Corridas anteriores.** Antes de sobrescribir, `.orchestrator/` se archiva en
+  `runs/<fecha>/`. La migración de formato se hace sobre la copia viva, con la archivada
+  intacta como reversa.
+
 Entregable: `.orchestrator/00-ficha-de-hechos.md` (stack, versiones, URLs oficiales,
 multi-tenant, apificación, modo, equipo y capacidades activadas, con justificación).
+
+**Traza obligatoria de la Fase 0.** La primera línea que la corrida escribe en
+`.orchestrator/trace.md` declara cómo resolvió la compuerta incremental:
+
+```
+fase-0: INCREMENTAL-SIN-CAMBIOS (commit <sha>)
+fase-0: INCREMENTAL-DELTA (<n> archivos desde <sha>; secciones actualizadas: ...)
+fase-0: COMPLETA (motivo: falta state.json | falta ficha | la persona pidió regenerar)
+fase-0: MIGRADA (schema_version 1 → 2 | memoria adoptada desde project-memory/)
+```
+
+Sin esa línea la corrida no avanza a la Fase 1. Una corrida que dice `COMPLETA` teniendo
+ficha, memoria y `state.json` válidos es un desvío y se reporta como tal.
 
 ---
 
@@ -211,14 +319,24 @@ automáticos alrededor del ciclo.
 El encargo incluye, en orden: (1) "Lee `evidence-protocol.md` y respétalo"; (2) "Lee tu
 brief `references/<agente>.md`"; (3) la ficha de hechos; (4) el alcance concreto; (5) el
 **modo**; (6) las capacidades del entorno asignadas a su tarea; (7) dónde dejar su
-entregable en `.orchestrator/`. Nunca lances APLICACIÓN sin plan aprobado.
+entregable en `.orchestrator/`; (8) la disciplina de escritura del informe. Nunca lances
+APLICACIÓN sin plan aprobado.
+
+**Disciplina de escritura (va literal en el encargo, no como puntero — el informe es lo
+que vuelve al contexto del director):** sin preámbulo, sin narración de herramientas, sin
+recapitular lo ya dicho, sin tablas decorativas. Hallazgo repetido = conteo + un ejemplo.
+Van **verbatim**: negaciones, números, unidades, `ruta:línea`, código, comandos y cadenas
+de error. **No** comprimas con abreviaturas inventadas (`cfg`, `impl`, `req`) ni flechas
+como sustituto de "produce": el tokenizador las cuenta igual y se leen peor. Las
+advertencias de seguridad, las acciones irreversibles y las secuencias donde el orden
+importa se escriben completas: ahí la claridad manda sobre la brevedad.
 
 Modos: `AUDITORÍA` (solo lectura, informe), `APLICACIÓN` (implementa lo aprobado),
 `ENTREVISTA` (solo Frontend en greenfield) y `ORQUESTACIÓN` (solo APIs, dirige la
 apificación). Indica siempre cuál. **Defensa en profundidad:** los modos de solo
 diagnóstico se lanzan sin herramientas de escritura (`Read, Grep, Glob`); solo APLICACIÓN
-recibe escritura, acotada a su alcance. Ajusta el modelo del subagente al coste del
-trabajo, no por defecto al más grande.
+recibe escritura, acotada a su alcance. Fija además el modelo del subagente por la
+incertidumbre de su encargo (regla en «Presupuesto de corrida»), y decláralo en el brief.
 
 ---
 
@@ -234,6 +352,41 @@ acotado o regístralo como [HUECO]; no lo rellenes tú. **Versiona la corrida**:
 
 Produce `.orchestrator/10-plan-consolidado.md`: hallazgos priorizados por riesgo, cambios
 con cita oficial, orden de aplicación por dependencias.
+
+**`10-plan-consolidado.md` es ACUMULATIVO por diseño, nunca un snapshot de la última
+corrida.** Su función es que una sola pasada de aplicación (Fase 4) pueda saldar TODO lo que
+sigue abierto del proyecto, no solo lo que esta corrida auditó. Antes de escribirlo:
+
+1. **Recupera el backlog vigente.** Si el proyecto ya tiene un documento propio de deuda
+   técnica/pendientes (buscar en `docs/`, README del módulo, o donde la ficha de hechos lo
+   señale — a menudo con una sección tipo "Priorización verificada" o "LEER PRIMERO"), esa
+   es la fuente de verdad del backlog acumulado, no el `10-plan-consolidado.md` de la corrida
+   anterior en solitario. Si no existe tal documento pero sí hay corridas previas en
+   `.orchestrator/runs/`, reconstruye el backlog desde el `10-plan-consolidado.md` más
+   reciente de esa carpeta.
+2. **Re-verifica cada ítem heredado contra el código ACTUAL** (no asumas que sigue como se
+   documentó): un hallazgo puede haberse corregido de paso en un commit que no lo mencionó.
+   Márcalo `RESUELTO`/`DESACTUALIZADO` con la evidencia nueva si ya no aplica, o `VIGENTE`
+   con evidencia refrescada (archivo:línea puede haber cambiado) si sigue abierto. No
+   re-audites de cero lo que un agente ya confirmó abierto recientemente y el delta no tocó.
+3. **Fusiona** los hallazgos re-verificados que siguen `VIGENTE` con los hallazgos NUEVOS de
+   esta corrida, con IDs estables que no colisionen entre corridas (p. ej. prefijo por fecha
+   de la corrida que lo originó, o numeración continua tipo P14, P15... si el proyecto ya
+   usa ese patrón) — nunca reutilices un número de ID para un hallazgo distinto solo porque
+   la corrida anterior ya lo usó.
+4. **Solo sale del backlog** un ítem que se verificó `RESUELTO` (con evidencia) o que la
+   persona marcó explícitamente como deuda aceptada/descartada en una compuerta anterior —
+   nunca por quedar fuera del alcance de la corrida actual.
+5. Si el proyecto mantiene su propio documento de deuda técnica, actualízalo en el mismo
+   cambio (no lo dejes desincronizado de `10-plan-consolidado.md`): éste último puede
+   remitir a aquel como fuente narrativa extendida, pero la lista accionable — priorizada,
+   con orden de aplicación por dependencias, lista para una sola pasada de Fase 4 — vive en
+   `10-plan-consolidado.md`.
+
+`20-production-gate.md` en cambio SÍ es un snapshot de la corrida (el veredicto GO/NO-GO
+corresponde al estado verificado en este momento) — no acumules gates de corridas distintas
+en un solo archivo; cada corrida completa produce su propio gate, y los anteriores se
+archivan en `runs/<fecha>/` como cualquier otro entregable de la corrida.
 
 ## Fase 2.5 — Cross-Audit + Meta-Audit (Red Team)
 
@@ -319,9 +472,10 @@ fase se concentraron, para que la persona vea dónde se gastó y ajuste el alcan
 ├── apply/                  (bitácora + <agente>-cambios.json + cierre documentado)
 ├── api/                    (contrato base y diffs)
 ├── 30-verificacion.md      (incluye aislamiento de tenants y verificación anti-regresión)
-├── trace.md                (trazabilidad: quién, qué, por qué, validación)
+├── trace.md                (trazabilidad: quién, qué, por qué, validación; abre con la línea `fase-0:`)
 ├── 90-aprendizajes.md
-├── state.json              (commit, hashes y checkpoints por paso por agente: modo incremental y reanudación)
+├── state.json              (schema_version, commit, hashes y checkpoints por paso por agente:
+│                           habilita la compuerta incremental de la Fase 0 y la reanudación)
 └── runs/<fecha>/           (corridas anteriores archivadas)
 
 El `policy-index.md` (Capa C) vive en `.claude/policy-index.md`, y la Capa A ejecutable
