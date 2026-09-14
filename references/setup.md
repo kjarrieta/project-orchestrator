@@ -43,13 +43,13 @@ proveedor se ignora y manda la asignación de este paso.
 
 Por cada brief en `references/` que sea un agente (feedback, architect,
 conventions-reviewer, robustness, database, api, integrations, frontend, seo,
-performance, sre, devops, business-rules, qa, security, red-team, documentation,
-learner), escribe un archivo en `.claude/agents/<nombre>.md` con este patrón:
+performance, sre, devops, business-rules, qa, security, red-team, policy-compliance,
+documentation, learner), escribe un archivo en `.claude/agents/<nombre>.md` con este patrón:
 frontmatter YAML + el cuerpo del brief como system prompt. Reglas al generarlos:
 
 - **Agentes de solo diagnóstico** (feedback, architect, conventions-reviewer, robustness,
   database, api, integrations, frontend, seo, performance, sre, devops, business-rules,
-  qa, security, red-team en su fase de auditoría) → `tools: Read, Grep, Glob`. No reciben
+  qa, security, red-team en su fase de auditoría, policy-compliance) → `tools: Read, Grep, Glob`. No reciben
   escritura hasta la fase de APLICACIÓN. El **Red Team** y el **Business Rules Auditor**
   no aplican código nunca: son solo AUDITORÍA/meta-auditoría.
 - **Agentes que redactan** (documentation, learner) → añaden `Write, Edit`.

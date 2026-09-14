@@ -49,12 +49,20 @@ MEDIUM sobre aislamiento de tenant es más peligroso que un HIGH de un Service g
      - non_idempotent_retry
      - destructive_migration_without_strategy
      - missing_required_audit
+     - company_policy_violation
    ```
    Estas claves coinciden con las `clase`/`dominio` del registro de regresiones
    (`regression-ledger.md`): un `hard_gate` abierto suele mapear a una entrada BLOCKING
    del registro.
 
-2. **PASS requiere evidencia.** Ningún eje se marca `PASS` sin **listar** su evidencia
+2. **El gate no se emite sin el veredicto de cumplimiento.** La Fase 6
+   (`references/policy-compliance.md`) corre antes de esta compuerta y deja
+   `.orchestrator/40-cumplimiento.json`. Si falta ese archivo, el gate queda `UNVERIFIED`
+   y no se presenta. Una política `OBLIGATORIA` violada abre el `hard_gate`
+   `company_policy_violation` ⇒ `NO-GO`. `SIN-CORPUS` **no** abre el hard gate: se anota
+   como hueco de cobertura en el gate y la corrida sigue.
+
+3. **PASS requiere evidencia.** Ningún eje se marca `PASS` sin **listar** su evidencia
    (ruta:línea, nombre de test, policy/lint que lo cubre). Sin evidencia ⇒ `UNVERIFIED`,
    **nunca** `PASS`. Esta sola regla elimina la mayoría de los falsos "todo está bien".
    ```
@@ -65,17 +73,17 @@ MEDIUM sobre aislamiento de tenant es más peligroso que un HIGH de un Service g
      - policy:lint LW-MUTATION-NO-AUTHZ = 0 nuevas
    ```
 
-3. **Un HIGH/CRITICAL CONFIRMED de seguridad, integridad financiera, aislamiento de
+4. **Un HIGH/CRITICAL CONFIRMED de seguridad, integridad financiera, aislamiento de
    tenant o concurrencia ⇒ BLOCKING / NO-GO.** No puede terminar en "nada bloquea" sin
    una justificación explícita **y evidencia** de que no es explotable.
 
-4. **UNVERIFIED sobre un boundary crítico ⇒ BLOCKING-hasta-verificar.** La falta de
+5. **UNVERIFIED sobre un boundary crítico ⇒ BLOCKING-hasta-verificar.** La falta de
    prueba sobre aislamiento de tenant, autorización o integridad financiera **no baja**
    la severidad a MEDIUM por "no hay prueba de fuga": bloquea hasta que exista la
    evidencia (típicamente un test de regresión). Distinguir "no sabemos si hay fuga" de
    "no hay fuga" es obligatorio.
 
-5. **FAIL/BLOCKING requiere evidencia reproducible, simétrico a la regla de PASS.** Un
+6. **FAIL/BLOCKING requiere evidencia reproducible, simétrico a la regla de PASS.** Un
    hallazgo que bloquea el GO no se sostiene solo con sospecha o razonamiento plausible:
    debe declarar el **tipo de evidencia** (static/runtime/test/db/policy/inferred) y, si
    es CONFIRMED, los **pasos de reproducción** (rol, acción, entrada, esperado vs.
@@ -105,6 +113,7 @@ dimensión + conteo por severidad + lista de BLOCKING + veredicto:
 ║ Observability            PASS                        ║
 ║ Deployment               PASS                        ║
 ║ Laravel Standards        PASS                        ║
+║ Company Policy           FAIL                        ║
 ╠══════════════════════════════════════════════════════╣
 ║ CRITICAL 0   HIGH 4   MEDIUM 3   LOW 3               ║
 ╠══════════════════════════════════════════════════════╣

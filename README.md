@@ -42,6 +42,7 @@ de inventar.
 | **QA Senior** | Sin autocomplacencia: pruebas de lógica, caja negra y blanca contra políticas y reglas de negocio; detecta conflictos de reglas. |
 | **Seguridad** | Inyecciones, OWASP, pentest defensivo del propio proyecto, dueño del veredicto de aislamiento de tenants y de los hard_gates. |
 | **Red Team / Audit Lead** | Meta-audita la auditoría: reconcilia contradicciones, caza PASS sin evidencia y puede anular un PASS antes del gate. |
+| **Cumplimiento Corporativo** | Corre último y es obligatorio. Correlaciona hallazgos, plan, cambios y aprendizajes con las políticas de la empresa; escala los conflictos entre norma y criterio técnico sin resolverlos en silencio. |
 | **Documentación** | Automático. Doc viva módulo por módulo, registro de reglas de negocio y mapa de impacto, cierre documentado de cada desarrollo. |
 | **Aprendiz** | Automático. Destila aprendizajes en políticas y memoria global; promueve regresiones al registro y las materializa (lint/test). |
 
@@ -56,6 +57,9 @@ Fase 2.5 Cross/Meta-Audit  → Red Team reconcilia y puede anular un PASS
 Fase 3  Compuerta          → emitir Production Gate GO/NO-GO; aprobar el plan (nada se aplica sin esto)
 Fase 4  Aplicación         → en secuencia, sobre una rama, commits atómicos; checklist de política por ruta
 Fase 5  Verificación       → QA y Seguridad validan + exigen el test/lint de cada regresión tocada
+Fase 6  Cumplimiento       → OBLIGATORIA y última: correlaciona la corrida con las políticas de
+                             la empresa; su veredicto entra al gate (corre antes de la Fase 3 en
+                             diagnóstico, y de nuevo al cerrar si hubo aplicación)
 ```
 
 Cada fase tiene un **bucle de validación**: si la salida de un agente no trae
@@ -187,6 +191,7 @@ project-orchestrator/
     ├── red-team.md             (Red Team / Audit Lead — meta-auditoría)
     ├── documentation.md        (Documentación)
     ├── learner.md              (Aprendiz)
+    ├── policy-compliance.md    (Cumplimiento Corporativo — último y obligatorio)
     ├── language-memory.md      (memoria global por lenguaje)
     ├── automation-hooks.md     (hooks y subagentes)
     └── observability.md        (trazabilidad y sensores del flujo agéntico)

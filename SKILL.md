@@ -48,6 +48,10 @@ globales `P-CHECKPOINT-01`, `P-AGENTS-01`, `P-MEMORY-01`, `P-TOKENS-01` de Claud
   la versión exacta. Sin evidencia: `[HUECO]` y se pregunta.
 - **I5 — La compuerta humana no es negociable.** Ningún cambio R3/R4 se aplica sin
   aprobación explícita de una persona, en ningún host, con o sin herramientas.
+- **I6 — El cumplimiento corporativo cierra toda corrida.** La Fase 6 corre siempre, la
+  última, aunque el host no tenga subagentes (entonces la ejecuta el director). Si no hay
+  corpus de políticas, se declara `SIN-CORPUS` y no bloquea; lo que **no** es admisible es
+  cerrar sin haberlo evaluado.
 
 Un host que no permita cumplir I4 o I5 no puede correr los modos de aplicación: se limita
 a los de diagnóstico y lo declara al abrir la corrida.
@@ -90,6 +94,8 @@ Fase 2.5 Cross/Meta   →  Red Team (Opus) reconcilia y puede anular un PASS
 Fase 3  Compuerta     →  emitir Production Gate GO/NO-GO; después presentar a la persona
 Fase 4  Aplicación    →  agentes EN SECUENCIA; cada uno carga su rebanada del policy-index
 Fase 5  Verificación  →  QA y Seguridad validan; exigen el test/lint de cada regresión tocada
+Fase 6  Cumplimiento  →  OBLIGATORIA y SIEMPRE ÚLTIMA: correlaciona la corrida con las
+                         políticas de la empresa; su veredicto entra al gate
 
 Automáticos (hooks): Documentación (al editar código), Aprendiz (al cerrar sesión) y el
 guard anti-regresión (PreToolUse sobre Edit|Write). Automatizan el disparo, nunca la
@@ -179,6 +185,12 @@ ingerir el aprendizaje que el equipo ya tiene, normalizado con procedencia y ded
 Carga primero `.orchestrator/project-memory/regression-ledger.json` y el `policy-index`
 si existen, y entrega a cada agente su rebanada por dominio/ruta. Best-effort: usa lo
 accesible, reporta lo que no. Nada ingerido se vuelve canónico sin compuerta.
+
+**Rebanada normativa (si hay corpus).** Si existe
+`~/.claude/project-orchestrator/memory/company-policies/`, la Fase R entrega además a cada
+agente las políticas `OBLIGATORIA` de su dominio — solo esas, no el corpus entero. Prevenir
+que un plan nazca violando la norma es más barato que descubrirlo en la Fase 6. La Fase 6
+sigue corriendo igual: esto es prevención, no sustituye la verificación.
 
 ## Fase 0 — Intake y detección de contexto
 
@@ -398,6 +410,10 @@ varios agentes pueden equivocarse igual y el gate heredaría el error.
 
 ## Fase 3 — Compuerta de aprobación
 
+**La Fase 6 corre antes de esta compuerta**, no después: el gate no se emite sin el
+veredicto de cumplimiento (`40-cumplimiento.json`). Una `OBLIGATORIA` violada es `BLOCKING`
+y fuerza `NO-GO`, igual que un hallazgo crítico de seguridad. Ver la Fase 6 más abajo.
+
 **Primero emite el Production Gate**: `.orchestrator/20-production-gate.md` según
 `references/production-gate.md` (tabla PASS/FAIL por dimensión, conteo por severidad,
 BLOCKING, veredicto GO/NO-GO). El gate **clasifica el riesgo, no decide por la persona**:
@@ -458,6 +474,58 @@ fase se concentraron, para que la persona vea dónde se gastó y ajuste el alcan
 
 ---
 
+## Fase 6 — Cumplimiento corporativo (obligatoria, siempre la última)
+
+Lanza al agente de **Cumplimiento Corporativo** (`references/policy-compliance.md`) en solo
+lectura. **Ninguna corrida cierra sin su veredicto**, en ningún modo y en ningún host: no es
+condicional como los agentes del registro, es parte del cierre.
+
+**Cuándo corre — siempre lo último de su tramo:**
+
+```
+Corrida de diagnóstico (termina en la compuerta):
+   … → 2.5 Red Team → 6 Cumplimiento → 3 Compuerta (lleva el veredicto dentro)
+
+Corrida que aplica:
+   3 Compuerta → 4 Aplicación → 5 Verificación → 6 Cumplimiento (cierra la corrida)
+```
+
+En una corrida completa corre **dos veces** y no es redundancia: la primera pasada evalúa
+el **plan** (evita aplicar algo que viola la norma), la segunda evalúa lo **aplicado** (el
+plan aprobado y el diff real no siempre coinciden). La segunda es la que cierra.
+
+**Qué hace.** Cruza hallazgos, plan, cambios y aprendizajes contra el corpus de políticas
+de la empresa, etiquetando cada elemento como `CUMPLE`, `INCUMPLE`, `NO-CUBIERTO`,
+`CONFLICTO` o `REFUERZA`. La correlación es **bidireccional**: además de verificar que la
+corrida respeta la norma, detecta políticas obligatorias que aplicaban al diff y **nadie
+verificó** (ese silencio es un hallazgo), y propone como **candidatas a política** los
+aprendizajes recurrentes que merecerían norma. Proponer no es dar de alta: el alta solo
+ocurre por `/policy-update`, con documento de la empresa detrás.
+
+**Aprendizajes vs. norma.** Los aprendizajes del orquestador valen, pero cuando chocan con
+una política de empresa **manda la política para lo que se aplica** — y el conflicto **se
+escala completo a la persona**, con ambas posiciones, nunca se cierra en silencio. Si el
+conflicto toca seguridad o integridad de datos, sube a `BLOCKING` aunque la política sea
+`RECOMENDADA`: una norma corporativa no autoriza un hueco de seguridad sin firma humana.
+
+**El corpus** vive en ámbito de usuario, fuera de la skill y en repositorio privado:
+`~/.claude/project-orchestrator/memory/company-policies/`. Se actualiza **solo** con
+`/policy-update`, que anexa con procedencia y nunca sobrescribe. **Si no existe**, el agente
+emite `SIN-CORPUS`: se registra como hueco de cobertura y **no bloquea** — una empresa que
+aún no entregó su documentación no se queda sin poder auditar.
+
+Entregable: `.orchestrator/40-cumplimiento.md` y `40-cumplimiento.json`, más la línea
+obligatoria en la traza:
+
+```
+fase-6: CUMPLE (corpus <versión>, N elementos correlacionados)
+fase-6: INCUMPLE (obligatorias violadas: EMP-SEC-03; BLOCKING)
+fase-6: OBSERVADO (N conflictos escalados, M huecos de cobertura)
+fase-6: SIN-CORPUS (no existe company-policies/; no bloquea)
+```
+
+---
+
 ## Estructura de salida
 
 ```
@@ -472,6 +540,8 @@ fase se concentraron, para que la persona vea dónde se gastó y ajuste el alcan
 ├── apply/                  (bitácora + <agente>-cambios.json + cierre documentado)
 ├── api/                    (contrato base y diffs)
 ├── 30-verificacion.md      (incluye aislamiento de tenants y verificación anti-regresión)
+├── 40-cumplimiento.md / .json  (correlación con las políticas de la empresa: salida
+│                           obligatoria de la Fase 6; su veredicto entra al gate)
 ├── trace.md                (trazabilidad: quién, qué, por qué, validación; abre con la línea `fase-0:`)
 ├── 90-aprendizajes.md
 ├── state.json              (schema_version, commit, hashes y checkpoints por paso por agente:
@@ -480,6 +550,10 @@ fase se concentraron, para que la persona vea dónde se gastó y ajuste el alcan
 
 El `policy-index.md` (Capa C) vive en `.claude/policy-index.md`, y la Capa A ejecutable
 (linter + tests de arquitectura + pre-commit + CI + baseline) en el repo del proyecto.
+El corpus de políticas de la empresa (Fase 6) vive en ámbito de usuario y privado:
+`~/.claude/project-orchestrator/memory/company-policies/`. No confundirlo con el
+`policy-index`: ese es política **técnica por ruta** del proyecto; aquél es norma
+**corporativa** y se actualiza solo con `/policy-update`.
 ```
 
 Cada archivo es autocontenido y con evidencia. La **memoria global por lenguaje** vive en

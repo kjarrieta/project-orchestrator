@@ -53,6 +53,11 @@ Una capacidad que ninguna subtarea usa no se activa. Un agente cuya capacidad no
 requerida se omite **con justificación** en la ficha (la regla de "justifica los
 omitidos" del `SKILL.md`).
 
+**Excepción: `compliance` no se enruta.** El agente de Cumplimiento Corporativo
+(`policy-compliance.md`) no depende de que una subtarea lo pida: corre siempre, el último,
+en toda corrida. No se omite ni con justificación. Si no hay corpus de políticas emite
+`SIN-CORPUS` y no bloquea, pero la fase se ejecuta igual.
+
 ### Disparador por palabra clave (independiente del modo)
 
 `dead-code-audit` (`capability-registry.md`, Adenda 2026-09-10) es la excepción a "solo
