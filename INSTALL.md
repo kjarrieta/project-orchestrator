@@ -23,6 +23,32 @@ mkdir -p ~/.claude/commands && cp ~/.claude/skills/project-orchestrator/commands
 # Reiniciá Claude Code
 ```
 
+### Mantener los comandos sincronizados (automático)
+
+`commands/` es lo que versiona la skill; `~/.claude/commands/` es lo único que Claude Code
+lee. Son **dos copias**: actualizar la skill con `git pull` no propaga nada por sí solo, y
+el síntoma de ese desfase —un comando que "no existe"— no dice nada sobre la causa, así que
+se busca en el PATH o en el frontmatter en vez de en la copia que faltó.
+
+Activá la sincronización automática una sola vez por clon:
+
+```bash
+git -C ~/.claude/skills/project-orchestrator config core.hooksPath hooks
+```
+
+Desde ahí, los hooks de `hooks/` corren `scripts/sync-commands.ps1` después de cada
+`pull`, `merge`, `checkout` o `rebase`, y dejan `~/.claude/commands/` al día —incluida la
+variante opencode, **pero solo si `~/.config/opencode/commands` ya existe**, para no mezclar
+variantes. El script no borra nada: sobrescribe lo que viene de la skill y respeta cualquier
+comando propio que ya vivieras en el destino. Es idempotente; podés correrlo a mano cuando
+edites un comando sin pasar por git:
+
+```bash
+pwsh ~/.claude/skills/project-orchestrator/scripts/sync-commands.ps1
+```
+
+Un comando **nuevo** solo aparece tras **reiniciar Claude Code**: el registro se lee al arrancar.
+
 ### Otro backend de agentes (opencode)
 
 Los comandos existen en **dos variantes** porque el procedimiento es agnóstico de

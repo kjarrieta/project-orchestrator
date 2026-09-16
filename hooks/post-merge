@@ -1,0 +1,4 @@
+#!/bin/sh
+# Tras un pull/merge, los comandos del repo y los que el host lee quedan desfasados.
+# Ver scripts/sync-commands.ps1. Nunca hace fallar la operacion de git.
+exec "$(dirname "$0")/_sync-commands.sh"

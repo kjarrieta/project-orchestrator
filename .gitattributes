@@ -1,0 +1,4 @@
+# Los hooks se ejecutan con sh: con finales CRLF (core.autocrlf=true en Windows)
+# fallan con "bad interpreter" y el fallo no dice cual es la causa. Forzar LF.
+hooks/* text eol=lf
+*.sh text eol=lf
