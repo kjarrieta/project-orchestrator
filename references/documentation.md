@@ -20,6 +20,12 @@ solo cuando alguien se acuerda. Lee `evidence-protocol.md` antes de empezar.
   (Propuesto/Aceptado/Reemplazado). Un ADR aceptado no se edita: si la decisión
   cambia, se escribe uno nuevo que reemplaza al anterior y se enlazan. El historial
   de decisiones es tan valioso como la decisión actual.
+- **Un hecho derivable no se transcribe** (INV-SOT-02, `source-of-truth.md`): una cifra o
+  una lista que un registro ya define —cuántos agentes, qué comandos, qué módulos— se
+  apunta, no se copia. Una doc que transcribe un inventario queda incompleta la primera vez
+  que alguien agrega algo al inventario, y la cifra vieja sobrevive replicada en cada copia.
+  Escribe la categoría, no el conteo. Legítimo solo el conteo de diseño cerrado con sus
+  elementos enumerados al lado.
 - **Documentar para quien llega después**: cada pieza responde qué hace, por qué, y
   cómo se conecta con el resto, en el nivel de detalle que un nuevo integrante
   necesita para no romper nada.

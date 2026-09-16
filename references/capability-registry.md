@@ -13,7 +13,7 @@ roster puede crecer sin que la lógica de orquestación cambie.
 ## Por qué capacidades y no "N agentes"
 
 No debe importar cuántos agentes existen en el catálogo. Debe importar qué capacidades
-requiere la tarea. Con 14 agentes hoy o 50 mañana, el orquestador pide una capacidad y
+requiere la tarea. Con el roster de hoy o con el triple mañana, el orquestador pide una capacidad y
 el registro resuelve quién la provee. Esto elimina el anti-patrón de "doce agentes" como
 concepto central: el número de agentes es un detalle de implementación, no una promesa
 de la skill.

@@ -7,8 +7,9 @@ argument-hint: "<ruta del documento o carpeta> [--dominio <dominio>]"
 
 Carga documentación normativa entregada por la empresa al **corpus de políticas** que el
 agente de Cumplimiento Corporativo consulta en la Fase 6. Lee primero
-`~/.claude/skills/project-orchestrator/references/policy-compliance.md`: define el esquema
-de entrada, los niveles de exigencia y cómo se usa cada campo.
+`references/policy-compliance.md` de la skill (localízala en `.agents/skills/project-orchestrator/`,
+`.claude/skills/project-orchestrator/` del proyecto, o `~/.claude/skills/project-orchestrator/`):
+define el esquema de entrada, los niveles de exigencia y cómo se usa cada campo.
 
 Argumento (ruta del documento, carpeta, o `revisar` para auditar el corpus sin cargar
 nada): $ARGUMENTS

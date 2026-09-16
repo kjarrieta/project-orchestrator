@@ -37,7 +37,7 @@ Argumentos (capacidad/plugin concreto a auditar, o vacío = detectar todos): $AR
    - **Qué aporta**: capacidades concretas (skills/comandos/agentes y qué hacen).
    - **Peso en tokens**: cuántas skills/agentes inyecta al estar activo (número de
      descripciones). Alto peso = más razón para activación por proyecto.
-   - **A qué tareas/agentes del orquestador sirve**: mapear contra los 12 agentes
+   - **A qué tareas/agentes del orquestador sirve**: mapear contra los agentes del orquestador
      (BD, APIs, Frontend, QA, Seguridad, etc.). Si optimiza o mejora un trabajo que
      hoy un agente hace a mano, eso se anota como delegación recomendada.
    - **Duplicados**: si duplica algo nativo (/code-review, /verify, etc.) u otro

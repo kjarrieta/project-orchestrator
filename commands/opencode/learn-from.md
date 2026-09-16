@@ -1,16 +1,16 @@
 ---
 description: Extrae aprendizajes de un proyecto específico (o de las memorias globales) hacia la memoria del orquestador — cualquier agente, docs y políticas, no solo .claude
-argument-hint: "<ruta del proyecto | global>"
 ---
 
 # Aprender de un proyecto existente
 
 Ejecuta el rol del agente de **Retroalimentación** de la skill `project-orchestrator`
 sobre una fuente concreta, para rescatar aprendizajes de proyectos viejos que aún no
-tienen estándar de memoria. Lee primero
-`~/.claude/skills/project-orchestrator/references/feedback.md` y
-`references/language-memory.md`: definen fuentes, formato de tres niveles
-(proyecto / lenguaje+versión / universal) y reglas de fusión.
+tienen estándar de memoria. Lee primero `references/feedback.md` y
+`references/language-memory.md` de la skill (localízala en `.agents/skills/project-orchestrator/`,
+`.claude/skills/project-orchestrator/` del proyecto, o `~/.claude/skills/project-orchestrator/`):
+definen fuentes, formato de tres niveles (proyecto / lenguaje+versión / universal) y
+reglas de fusión.
 
 Argumento (ruta del proyecto, o `global`): $ARGUMENTS
 

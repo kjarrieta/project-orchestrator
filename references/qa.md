@@ -71,6 +71,18 @@ k6/Artillery aparte). Usa su checklist de cobertura por recurso: una casilla sin
 un [HUECO], no un supuesto de cobertura. Es agnóstico de lenguaje: traduce el mecanismo
 al framework del proyecto (Jest/Vitest, PyTest, JUnit, Go testing, RSpec…).
 
+### Check anexado por aprendizaje externo (code-review 2026-09-15): filtro exacto con valor cero
+
+Al diseñar/verificar cobertura de reglas de negocio (categoría 1) sobre cualquier
+endpoint con filtros exactos numéricos (habitaciones, baños, parqueaderos, cantidad,
+descuento, índice), incluir explícitamente el caso `valor = 0` como su propio test, no
+solo positivos y ausencia. Un filtro construido con `empty($filtro)` (u otro "truthy
+check" laxo) trata `0` igual que "no vino" y descarta la búsqueda silenciosamente — el
+bug no aparece con valores positivos, solo en el límite. Ver
+`memory/global/practices.md` para el antipatrón completo. Evidencia: `code-review`
+2026-09-15, proyecto Laravel — `GET /api/mls/properties/search?r=0` (estudio, cero
+habitaciones) devolvía el set sin filtrar por `empty($filters['r'])`.
+
 ## Política global de verificación: condiciones de carrera y concurrencia (Fase 5, OBLIGATORIA)
 
 > Aplica a **TODO proyecto**, no solo a los que "parecen concurrentes". Es una política

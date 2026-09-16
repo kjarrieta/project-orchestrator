@@ -28,6 +28,31 @@ particionado, tipos JSON, índices parciales), y cómo el framework de la aplica
 mapea todo eso (ORM, migraciones, convenciones). Todo esto se verifica leyendo las
 migraciones, el esquema real y la documentación oficial de esa versión del motor.
 
+**Nunca reutilices sintaxis DDL de otro motor sin traducir.** Antes de proponer CUALQUIER
+sintaxis DDL (índices sin lock largo, tipos JSON, full-text search, etc.), confirma el
+motor EXACTO de ESTE proyecto contra su `.env`/config real (`DB_CONNECTION`, no el nombre
+del framework ni un patrón de referencia de una auditoría anterior en otro proyecto). Tabla
+de equivalencias mínima:
+
+| Necesidad | PostgreSQL | MySQL 8/InnoDB |
+|---|---|---|
+| Índice sin lock largo | `CREATE INDEX CONCURRENTLY` + `$withinTransaction = false` | `ALGORITHM=INPLACE, LOCK=NONE` (no todas las operaciones lo soportan; verificar caso por caso) |
+| Búsqueda de texto libre | `pg_trgm` + índice GIN | `FULLTEXT` (sintaxis y limitaciones propias, no es GIN) |
+| Tipo JSON binario indexable | `jsonb` | solo `json` — **`jsonb` no existe en MySQL**, no traducir literalmente |
+
+Copiar sintaxis Postgres (`CONCURRENTLY`, `jsonb`, `$withinTransaction = false`) a un
+proyecto MySQL produce una migración que falla o, peor, deuda técnica documentada como si
+fuera válida. Verificado: un documento de deuda técnica del proyecto tenía ítems escritos
+con sintaxis Postgres en un proyecto MySQL — una auditoría anterior copió el patrón de
+referencia sin verificar el motor real.
+
+El riesgo no se limita a DDL: también aplica a **operadores de query en runtime**
+(`whereRaw`/`orWhereRaw` y equivalentes). Caso real detectado con `EXPLAIN`: el operador
+`??` de JSONB de PostgreSQL usado literalmente en una query MySQL (`orWhereRaw('columna ?? ?', ...)`)
+— sintácticamente inválido en MySQL, el filtro probablemente nunca funcionó. Verificar
+también los operadores usados dentro de `whereRaw`/`selectRaw` contra el motor real, no
+solo la sintaxis DDL de las migraciones.
+
 ## Determina la estrategia multi-tenant (sin suponerla)
 
 Leyendo el esquema y el código, identifica cuál de estas usa el proyecto y
@@ -50,6 +75,18 @@ Lee el esquema desde las migraciones (fuente de verdad cuando no hay conexión l
 desde la BD (Tier 1, más fiable). Recorre los 10 flujos de abajo en orden; cada uno
 termina en [OBSERVADO] con evidencia `ruta:línea` o [HUECO] si falta dato de runtime.
 
+**Nunca depender de un parser de DDL genérico de terceros sin verificarlo contra el motor
+real.** Un parser/regex de `CREATE TABLE` escrito para un motor (p. ej. Postgres) puede
+fallar silenciosamente en otro: no tolera el sufijo `ENGINE=...` de MySQL, ni distingue
+cláusulas `KEY` planas de `PRIMARY KEY`/`UNIQUE`/`FOREIGN KEY`. Caso real: las herramientas
+de un plugin externo de auditoría (`scripts/parse-schema.mjs`,
+`scripts/lint-missing-fk-index.mjs`) estaban escritas para Postgres y produjeron resultados
+no confiables sobre DDL de MySQL — hubo que normalizar el DDL a mano y verificar contra
+`SHOW CREATE TABLE` en vivo en su lugar. Regla: cualquier herramienta/regex que este agente
+use para leer DDL debe probarse contra el motor real detectado antes de confiar en su
+salida; con conexión live, confirmar cobertura de índices y demás heurísticas estáticas con
+`EXPLAIN` real, no solo con el resultado del parser.
+
 ### Flujo 1 — Esquema real y fuente de verdad
 - Tablas, columnas, tipos exactos (no "decimal" sino "decimal(15,2)" o "double precision"),
   claves primarias, foráneas, índices, restricciones y relaciones tal como están en
@@ -58,6 +95,20 @@ termina en [OBSERVADO] con evidencia `ruta:línea` o [HUECO] si falta dato de ru
   o instrospección live. Declarar el nivel de confianza (directional vs established).
 - Registrar modelos de staging (tablas de aterrizaje ETL con todo texto) como diseño
   correcto, no como hallazgo.
+- **`$table`/binding de cada modelo ORM contra la tabla real**: nunca confiar en el nombre
+  del modelo, su docblock, ni la similitud de nombre entre modelo y tabla. El `$table` de
+  un modelo Eloquent (u otro ORM) es texto libre desconectado del nombre real creado por
+  las migraciones — un rename de tabla (`Schema::rename`) o una migración reescrita puede
+  dejar el modelo apuntando a una tabla que ya no existe, y esto es INVISIBLE con solo
+  lectura estática de migraciones aisladas. Verificación obligatoria: cruzar cada `$table`
+  explícito contra las tablas realmente creadas (grep de `Schema::create`/`Schema::rename`
+  en el histórico completo de migraciones) y, si hay conexión disponible, confirmar con
+  introspección viva (`SHOW TABLES LIKE '<tabla>'` en MySQL, `\dt` o
+  `information_schema.tables` en Postgres). Caso real detectado: un modelo declaraba
+  `protected $table = 'mls';` pero la migración creaba la tabla `sale` (tras un rename
+  `Mls`→`Sale` documentado en el proyecto) — `mls` no existía en la BD viva, rompiendo
+  silenciosamente el Repository y el Import que dependían de ese modelo. Tratar como
+  severidad 5 (rompe el pipeline central sin error visible en tiempo de desarrollo).
 
 ### Flujo 2 — Integridad referencial y llaves
 - FKs declaradas vs relaciones Eloquent/ORM que emparejan por **valor de texto** en
@@ -98,12 +149,28 @@ termina en [OBSERVADO] con evidencia `ruta:línea` o [HUECO] si falta dato de ru
 - **Índices compuestos**: el primer filtro de cada búsqueda pública debe estar cubierto
   (`is_visible` casi siempre es la primera condición). Proponer compuestos en lugar de
   simples cuando el workload lo justifique.
-- **ILIKE '%valor%' no es SARGable** en B-tree: requiere índice GIN trigram (`pg_trgm`).
-  Verificar si la extensión está habilitada. Sin GIN, toda búsqueda de texto libre es
-  sequential scan completo.
+- **`ORDER BY` sin índice compuesto que cubra filtro + orden** dispara `Using filesort` en
+  `EXPLAIN`. Caso real: listado admin con `orderByRaw` + múltiples `orderBy` encadenados sin
+  un índice que cubra esa secuencia exacta de columnas. Verificar la secuencia exacta
+  filtro→orden contra el índice propuesto, no solo que "exista un índice" en las columnas.
+- **ILIKE/LIKE '%valor%' no es SARGable** en B-tree: en PostgreSQL requiere índice GIN
+  trigram (`pg_trgm`); verificar si la extensión está habilitada. En MySQL el equivalente
+  no es GIN — es índice **FULLTEXT** (`MATCH...AGAINST`). Sin ninguno de los dos, toda
+  búsqueda de texto libre con comodín inicial es sequential scan completo (`type=ALL` en
+  `EXPLAIN`) — confirmado con 34K filas ya lo disparaba, no hace falta escala masiva.
+- **`WHERE LOWER(columna) = ?`** (o cualquier función que envuelva la columna del lado
+  izquierdo del predicado) invalida un índice B-tree/único existente sobre esa columna —
+  el motor no puede usarlo aunque exista; `EXPLAIN` lo confirma mostrando otro índice o
+  ninguno. Si la collation ya es `*_ci` (case-insensitive, default típico en MySQL), la
+  función es redundante Y costosa a la vez — quitarla resuelve ambos problemas.
+- **`->inRandomOrder()` (Eloquent) compila a `ORDER BY RAND()`**: dispara
+  `Using temporary; Using filesort` sobre todo el conjunto filtrado en cada request, no
+  solo sobre el `LIMIT` final. Antipatrón clásico de "selección aleatoria"; preferir
+  sampling por rango de PK.
 - Proponer migraciones con `CREATE INDEX CONCURRENTLY IF NOT EXISTS` y
   `$withinTransaction = false` (el lock que crearía `CREATE INDEX` normal en una tabla
-  con sync activa es inaceptable en producción).
+  con sync activa es inaceptable en producción). Sintaxis PostgreSQL — en MySQL usar el
+  equivalente de la tabla de equivalencias en "Conocimiento flexible".
 
 ### Flujo 6 — Índices redundantes / higiene
 - `->unique('col')` ya crea un índice B-tree en PostgreSQL. Si la migración añade además
@@ -112,6 +179,10 @@ termina en [OBSERVADO] con evidencia `ruta:línea` o [HUECO] si falta dato de ru
   (conservar el UNIQUE).
 - Verificar que índices sobre FK (cubrientes) existen — sin ellos, cada join por FK hace
   seq scan en la tabla secundaria.
+- **Herramientas de debug sin poda programada**: Laravel Telescope (u homólogas) habilitadas
+  sin tarea programada de poda (`telescope:prune` o equivalente) acumulan filas sin límite —
+  storage/bloat que crece indefinidamente. Verificar que exista el schedule de poda si la
+  herramienta está activa en el entorno.
 
 ### Flujo 7 — N+1 estructural y full-scan en memoria
 - Verificar que los Repositories usan eager loading (`with([...])`) en lugar de lazy
@@ -138,6 +209,16 @@ termina en [OBSERVADO] con evidencia `ruta:línea` o [HUECO] si falta dato de ru
   explícitamente, no implícitamente ausente.
 - Migraciones de índices: usar `DROP INDEX CONCURRENTLY IF EXISTS` en `down()` y
   `CREATE INDEX CONCURRENTLY IF NOT EXISTS` en `up()`, con `$withinTransaction = false`.
+  (Sintaxis PostgreSQL — en MySQL usar el equivalente de la tabla de equivalencias en
+  "Conocimiento flexible".)
+- **`DROP COLUMN` en MySQL 8/InnoDB no es instant algorithm**: solo `ADD COLUMN` al final
+  de la tabla califica como "instant" desde MySQL 8.0.12+. `DROP COLUMN` dispara
+  `ALGORITHM=COPY` — reconstrucción completa de la tabla con un lock que bloquea
+  escrituras concurrentes durante toda la operación — a diferencia de PostgreSQL, donde
+  `DROP COLUMN` suele ser solo metadata (rápido, sin reescritura). Antes de aprobar una
+  migración de "limpieza" que borre columnas en MySQL, evaluar el tamaño de la tabla y el
+  tiempo de rebuild contra tablas con escritura activa; no asumir que es una operación
+  barata solo porque lo sería en Postgres.
 
 ### Flujo 10 — Tracking de estado sincronizado (firstOrCreate vs updateOrCreate)
 - Tablas de tracking (última sync, TRM, timestamps de ejecución): verificar que el ORM

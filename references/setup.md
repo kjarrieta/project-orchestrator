@@ -130,12 +130,32 @@ La pieza que hace que "lo documentado no vuelva a colarse". Ver `anti-regression
      las capas (`regression-ledger.md`).
    - **`.claude/policy-index.md`** (Capa C) — mapa `ruta/glob → reglas duras aplicables`,
      con las mismas claves que las reglas de Capa A.
-3. **Guard temprano opcional (Capa C):** el hook `PreToolUse` anti-regresión de
-   `automation-hooks.md`. Complementa la Capa A (cubre lo que escribe Claude Code); la
-   red final sigue siendo Capa A en CI.
+3. **Guard de escritura (Capa C) — obligatorio, no opcional.** Es lo único de toda la
+   skill que actúa **mientras** se escribe; sin él, cada incumplimiento se paga tres
+   veces: ejecutar, corregir, auditar para volver a corregir. Se instalan las dos
+   piezas, en este orden:
+   - **`scripts/compile-guard-rules.ps1`** — compila las cuatro fuentes de política
+     (registro de regresiones, corpus de empresa, memoria de lenguaje/global,
+     `policy-index`) en `.orchestrator/guard-rules.json`. Corre en la Fase R, antes de
+     que ningún agente escriba, y **se vuelve a correr al cerrar** si el Aprendiz añadió
+     entradas.
+   - **`scripts/anti-regression-guard.ps1`** — hook `PreToolUse` sobre `Edit|Write` que
+     evalúa ese contrato y **bloquea** (exit 2) la escritura que viola un invariante ya
+     documentado. Ver `automation-hooks.md`.
+
+   La Capa A en CI sigue siendo la red final (atrapa a cualquier autor, no solo a Claude
+   Code), pero ya no es la **primera**: el guard mueve la detección al momento de
+   escribir, que es donde cuesta una corrección en vez de tres.
+
+4. **Lee el inventario de huecos.** El compilador emite `sin_firma[]`: las políticas que
+   **ninguna máquina puede hacer cumplir** porque siguen siendo prosa sin firma. Ese
+   número es la superficie real que va a caer en auditoría humana. Preséntalo en la
+   compuerta; destilar las de mayor severidad a `senal` es trabajo de la corrida, no
+   deuda invisible.
 
 Todo esto se **propone y se escribe tras el visto bueno**; sin la Capa A el sistema
-funciona, pero pierde la garantía de "una regresión documentada no puede mergear".
+funciona, pero pierde la garantía de "una regresión documentada no puede mergear", y sin
+el guard de Capa C la pierde *durante el desarrollo*, que es cuando más barata sale.
 
 ## Paso 4 — Confirmar
 

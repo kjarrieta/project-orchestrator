@@ -118,16 +118,20 @@ bloquearla** (exit code 2 o `permissionDecision: "deny"`). Cablea un manejador s
 propuesto), consulte las entradas del `regression-ledger.json` cuyo `alcance_rutas` casa
 con la ruta editada, y evalúe su `senal`:
 
+**El script existe y vive en la skill**, no hay que escribirlo por proyecto:
+`scripts/anti-regression-guard.ps1` (PowerShell 5.1+, funciona en Windows y con `pwsh`
+en Linux/macOS). Lo que se cablea por proyecto es el hook:
+
 ```json
 {
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/scripts/anti-regression-guard.sh",
+            "command": "pwsh -NoProfile -File \"$HOME/.claude/skills/project-orchestrator/scripts/anti-regression-guard.ps1\"",
             "timeout": 60
           }
         ]
@@ -137,18 +141,53 @@ con la ruta editada, y evalúe su `senal`:
 }
 ```
 
-`anti-regression-guard.sh`:
+El guard **no lee las políticas directamente**: lee `.orchestrator/guard-rules.json`, que
+produce `scripts/compile-guard-rules.ps1` fusionando las cuatro fuentes (registro de
+regresiones, corpus de empresa, memoria de lenguaje/global, `policy-index`). Si ese
+archivo no existe, el guard sale en silencio: un proyecto que aún no corrió la skill no
+queda bloqueado.
+
+**Solo lo que tiene firma es exigible.** Una política en prosa no puede bloquear nada. El
+corpus y las memorias de lenguaje declaran su firma en un bloque cercado ```` ```senal ````
+bajo el encabezado de la política:
+
+````markdown
+### EMP-APIS-03 — Toda respuesta de error usa el envelope estándar
+
+```senal
+{
+  "tipo": "grep_requerido",
+  "alcance_rutas": ["app/Http/Controllers/**/*.php"],
+  "patron": "response\\(\\)->json\\(",
+  "requiere_ademas": "ApiResponse::|ErrorEnvelope",
+  "gate": "BLOCKING",
+  "correccion": "Usa ApiResponse::error(); no construyas el JSON a mano."
+}
+```
+````
+
+Lo que no lo declara aparece en `sin_firma[]` del `guard-rules.json`: es el inventario
+explícito de lo que seguirá cayendo en auditoría humana. Ese número se presenta en la
+compuerta; un hueco medido es deuda declarada, un hueco no medido es la sorpresa de la
+auditoría de rama.
+
+`anti-regression-guard.ps1`:
 - `grep_prohibido` que casa el patrón → **bloquea** (exit 2) con el ID de la entrada, el
   invariante y la corrección esperada.
 - `grep_requerido` cuyo `patron` casa pero falta `requiere_ademas` → **bloquea**.
 - Cualquier entrada del dominio/ruta tocado → **inyecta** al contexto los invariantes
   relevantes como recordatorio (aunque no bloquee).
 
-Es **complementario, no la red final**: cubre lo que escribe Claude Code; la garantía de
-que ningún autor (humano u otra herramienta) mergee una regresión la da la **Capa A**
-(linter de políticas + CI, en el propio repo). El bloqueo explica el invariante y cómo
-cumplirlo; la persona puede levantar el guard de forma explícita para un cambio concreto,
-nunca en silencio.
+Es **la primera red, no la última**: atrapa la violación antes de que el archivo exista,
+que es cuando corregirla cuesta una vez y no tres. La **Capa A** (linter de políticas + CI
+en el propio repo) sigue siendo la garantía de que ningún autor —humano u otra
+herramienta— mergee una regresión; lo que el guard elimina es el ciclo
+*ejecutar → corregir → auditar → volver a corregir* dentro de una misma sesión.
+
+El bloqueo explica el invariante y cómo cumplirlo. La persona puede levantar el guard para
+IDs concretos con `ORCH_GUARD_BYPASS`, y queda registrado en
+`.orchestrator/guard-bypass.log` con fecha, ruta y regla: **nunca en silencio**. El agente
+que recibe un bloqueo no rodea el guard ni lo reescribe — corrige el código o escala.
 
 ### Eventos útiles (referencia rápida)
 

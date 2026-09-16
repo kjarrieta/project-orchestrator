@@ -4,6 +4,7 @@ memory-snapshot/
 
 # Comando de empaquetado: uso interno, NO se publica ni viaja en el paquete distribuible.
 commands/pack-skill.md
+commands/opencode/pack-skill.md
 
 # Ruido de SO / editores
 .DS_Store

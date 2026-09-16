@@ -131,7 +131,14 @@ tenga su lint o su test:
   políticas o test de arquitectura (Capa A), y baja el baseline al corregir.
 - Si **no es estática** (fuga cross-tenant, cálculo con decimales, transición de estado)
   → materialízala como test de regresión y pásalo a QA/Seguridad como backlog de Fase 5.
-Detalle en `anti-regression.md`. Una lección sin lint ni test es una lección abierta.
+- Si la lección es de **artefacto** y no de código (dos copias de un comando, una config o
+  una doc que derivaron; una cifra de inventario escrita a mano) → no la cierres con un
+  test: materialízala como entrada de `source-of-truth.md` y su verificación en la
+  **compuerta de distribución**. Un artefacto no se compila, así que la red que lo atrapa
+  es la de empaquetar/publicar/instalar, no CI.
+
+Detalle en `anti-regression.md`. Una lección sin lint, test ni compuerta es una lección
+abierta.
 
 ## Límite importante
 

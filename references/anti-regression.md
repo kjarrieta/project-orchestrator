@@ -60,6 +60,13 @@ crece. Así la capa se adopta sin bloquear el desarrollo el primer día.
 Genera Capa A por stack en la instalación (ver `setup.md`), acotando las reglas a las
 firmas reales del proyecto — no inventes reglas sin una política que las respalde.
 
+**La Capa A también cubre artefactos, no solo código.** Un comando, un instalador o un
+README que existe en varias copias regresa igual que una función: una copia se mejora, las
+otras quedan atrás y nada falla. Los dos invariantes de esa familia —copias declaradas y
+hechos derivables que no se escriben a mano— viven en **`source-of-truth.md`** con sus
+firmas, y su compuerta es el momento de distribuir (empaquetar, publicar, instalar), no el
+de compilar.
+
 ## Capa B — La auditoría es un Production Readiness Gate
 
 Detalle en `production-gate.md`. Resumen: veredicto GO/NO-GO con `hard_gates`; cada
@@ -115,3 +122,6 @@ Seguridad reciben ese backlog de tests como entrada de la Fase 5.
   que el diff tocó (Capa D). Sin él, el hallazgo queda UNVERIFIED, no PASS.
 - **Cierre (Aprendiz):** promueve los hallazgos confirmados a entradas del registro y las
   materializa como lint (A) o test (D).
+- **Distribución (empaquetar/publicar/instalar):** compuerta de `source-of-truth.md` —
+  paridad de inventario entre copias, diff acotado a las diferencias declaradas y firma de
+  hechos derivables. Si falla, no se distribuye.

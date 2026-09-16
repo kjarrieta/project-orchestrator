@@ -81,7 +81,8 @@ ahí dos consecuencias que gobiernan todo lo demás:
 Conocimiento anclado a versión (L0–L6, caducidad, Facts/Knowledge/Memory/Learnings):
 `references/knowledge-system.md`. Decisiones y descartes para no re-litigar lo cerrado:
 `references/decision-ledger.md`. Aprobación graduada por riesgo R0–R4:
-`references/risk-levels.md`.
+`references/risk-levels.md`. Copias declaradas y hechos derivados —la regresión de
+artefacto que ni la auditoría ni el build miran—: `references/source-of-truth.md`.
 
 ## Modelo de ejecución (modo AUDIT — pipeline completo)
 
@@ -191,6 +192,16 @@ accesible, reporta lo que no. Nada ingerido se vuelve canónico sin compuerta.
 agente las políticas `OBLIGATORIA` de su dominio — solo esas, no el corpus entero. Prevenir
 que un plan nazca violando la norma es más barato que descubrirlo en la Fase 6. La Fase 6
 sigue corriendo igual: esto es prevención, no sustituye la verificación.
+
+**Compilación del contrato de escritura (obligatoria).** Entregar la rebanada a un agente
+es advisory: el modelo puede olvidarla a mitad de la Fase 4. Por eso la Fase R **también**
+corre `scripts/compile-guard-rules.ps1`, que funde las cuatro fuentes de política en
+`.orchestrator/guard-rules.json` — el contrato que el hook `PreToolUse` evalúa en cada
+`Edit|Write` y que **bloquea** la escritura que viola un invariante ya documentado
+(`automation-hooks.md`). Esto corre **antes de que ningún agente escriba**, y se repite al
+cerrar si el Aprendiz añadió entradas. El compilador reporta `sin_firma[]`: las políticas
+que siguen siendo prosa y por tanto **nadie puede hacer cumplir al escribir**. Ese conteo
+entra a la compuerta como hueco de exigibilidad declarado.
 
 ## Fase 0 — Intake y detección de contexto
 
