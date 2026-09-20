@@ -80,6 +80,41 @@ Cada entrada es autocontenida y trazable:
   cliente, SIN secretos, SIN datos del proyecto>
 ```
 
+**Si la entrada nombra un patrón de detección** (aunque sea en prosa dentro de "Qué" o
+"Por qué" — "un grep de X sin Y", "todo método que llama A debe llamar también B"),
+**no se queda solo ahí**: se adjunta, en el mismo momento de escribir la entrada, el
+bloque ```` ```senal ```` con ese contrato (mismo esquema y mismas reglas que
+`policy-update.md` Paso 3 y `regression-ledger.md` — `gate`, `alcance_rutas`, `patron`,
+`requiere_ademas` según el tipo):
+
+````
+### <título corto del patrón o footgun>
+- Categoría: footgun
+- Aplica a: Alpine 3
+- Qué: ...
+- Por qué: ...
+- Cómo se detectó: ...
+
+```senal
+{
+  "tipo": "grep_prohibido",
+  "alcance_rutas": ["resources/**/*.blade.php"],
+  "patron": "addEventListener\\(.*document\\)(?!.*destroy)",
+  "gate": "NON-BLOCKING",
+  "correccion": "Guarda la referencia del handler y remuévela en destroy()."
+}
+```
+````
+
+Sin ese bloque, el compilador de `guard-rules.json` (`scripts/compile-guard-rules.ps1`)
+nunca hace exigible la entrada, sin importar cuántas veces se repita el aprendizaje —
+la trata como prosa (`sin_firma`) igual que si nunca se hubiera detectado un patrón.
+**Escribir "señal de auditoría: grep de X" dentro de "Qué" no cuenta**: el compilador
+solo parsea el bloque fenced, nunca texto libre. Mismo criterio de rigor que
+`/policy-update`: si no hay un patrón que discrimine sin ruido, se omite el bloque —
+nunca se inventa una regex "para cubrir" la entrada. Ver `regression-ledger.md`,
+«Distilación proactiva vs. reactiva».
+
 ## Reglas de escritura (no negociables)
 
 - **Nada sensible.** La memoria global cruza proyectos y clientes: jamás incluye
