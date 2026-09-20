@@ -89,10 +89,17 @@ Con el mapa de D1, por cada política que sí aplica:
 - **Si D1 no encontró nada** (política no implementada, o proyecto greenfield sin código
   aún): define el patrón contra la **forma idiomática esperada** en ese framework/versión,
   citando la doc oficial — sin inventar, con la misma evidencia que exige `evidence-protocol.md`.
-- **Si ningún patrón es seguro** (alto riesgo de falso positivo, o D1 no dio vocabulario
-  suficiente para diferenciarlo del resto del código): no se fuerza. Se reporta `sin_firma`
-  con el motivo — sigue como conocimiento fijo para razonamiento de agente.
-- Clasifica el destino de cada `senal` nueva:
+- **Si ningún patrón `grep_*` es seguro, pero el invariante es real y verificable en
+  ejecución** (autorización que sí se llama pero con el rol equivocado, aislamiento de
+  tenant, un `select` que guarda un id inexistente, una transición de estado inválida,
+  redondeo de dinero): **no lo declares `sin_firma` y sigas** — esos son exactamente los
+  casos que un grep no puede expresar (evalúa comportamiento, no texto) pero un **test sí
+  puede**. Ver «Cuando el patrón es un test, no una regex» abajo.
+- **Solo si ni un patrón estático ni un test son viables** (la política es de criterio —
+  tono de un mensaje, calidad de una decisión de diseño — o D1 no dio vocabulario
+  suficiente para diferenciarla del resto del código): ahí sí se reporta `sin_firma` con
+  el motivo — sigue como conocimiento fijo para razonamiento de agente.
+- Clasifica el destino de cada `senal` nueva (grep o test):
   - **Regla de negocio de este proyecto** (cantidades, formatos, convenciones que no son
     universales del framework) → `.orchestrator/project-memory/regression-ledger.json`.
   - **Regla cierta para cualquier proyecto en ese lenguaje/framework+versión** (la política ya
@@ -107,6 +114,62 @@ Con el mapa de D1, por cada política que sí aplica:
 
 Es la misma disciplina que la Fase 2 del orquestador (consolidación: qué se va a tener), pero
 el resultado son entradas de `senal`, no un plan de cambios de código.
+
+## Cuando el patrón es un test, no una regex
+
+`grep_prohibido`/`grep_requerido` verifican **texto**: sirven para "¿aparece esta llamada?",
+no para "¿esta llamada produce el resultado correcto con estos datos?". Aislamiento de
+tenant, autorización con el rol correcto (no solo "se llamó a algo"), un `select` que solo
+acepta ids reales, dinero con la precisión correcta, una transición de estado que rechaza el
+salto inválido — todos son invariantes reales que un test de comportamiento sí verifica y un
+grep no. El compilador ya distingue esto en su esquema (`senal.tipo: "test_requerido"`,
+`regression-ledger.md`): D2 lo usa activamente, no solo lo menciona.
+
+1. **Genera el test**, no solo lo exijas en prosa. Un `test_requerido` sin el test escrito es
+   la misma deuda que un `sin_firma` — nadie lo corre hasta que alguien más lo escriba. D2
+   redacta el test contra el framework de pruebas real del proyecto (PHPUnit/Pest, Jest,
+   pytest…), usando el vocabulario que D1 encontró (nombres de modelo, rutas, factories ya
+   existentes) — mismo principio que con los `senal` de grep: sin evidencia real de cómo se
+   arma un test en este proyecto, no se inventa un fixture que no calza con el resto.
+
+2. **Va en una carpeta propia, separada del suite orgánico del proyecto.** Estos tests
+   existen porque **esta skill** los exige como condición de cumplimiento de una política,
+   no porque el equipo los haya escrito como parte de su cobertura funcional — mezclarlos en
+   `tests/Feature`/`tests/Unit` los hace indistinguibles de la cobertura propia del equipo, y
+   alguien puede refactorizarlos o borrarlos sin saber que protegen un invariante de la
+   compuerta. Ruta fija: `.orchestrator/guard-tests/<lenguaje>/...`, replicando debajo la
+   convención de test del framework (namespace, base class) para que el runner los reconozca
+   sin trato especial. Cada archivo generado lleva un comentario de una línea con el `id` de
+   la entrada del registro que lo exige — la trazabilidad inversa (qué política generó este
+   test) tiene que ser inmediata.
+
+3. **Se cablea al runner real del proyecto, o no cuenta como exigible.** Un test en una
+   carpeta que nadie ejecuta es exactamente tan inerte como un `sin_firma` — peor, porque
+   aparenta cobertura. Verifica y, si falta, propone (con la misma compuerta de aprobación
+   que un hook) la entrada de configuración que lo incluye: `<testsuite>` en `phpunit.xml`
+   apuntando a `.orchestrator/guard-tests/php`, `testMatch`/`roots` en la config de Jest,
+   `testpaths` en `pytest.ini`, etc. Sin runner de pruebas configurado en el proyecto, no se
+   inventa uno solo para esto: se declara el hueco explícito (mismo criterio que un stack sin
+   Capa A de `setup.md` Paso 3.7) y el test generado queda pendiente de que el proyecto tenga
+   dónde correr.
+
+4. **La entrada del registro apunta al test, no lo reemplaza.** En `regression-ledger.json`:
+   `senal.tipo: "test_requerido"`, `senal.alcance_rutas` sobre el dominio real (igual que un
+   `grep_*`), y `test_regresion` con el nombre calificado del test generado
+   (`TenantIsolationGuardTest::test_query_scoped_to_current_tenant`). El hook `PreToolUse`
+   sigue sin poder bloquear en el momento de escribir (no ejecuta el suite en cada `Edit`,
+   ver `automation-hooks.md`) — el bloqueo real ocurre en **Fase 5** (que exige el
+   `test_regresion` por cada invariante que el diff toca) y en **CI**, que es donde vive la
+   red final de Capa A. `PreToolUse` sí inyecta como recordatorio el invariante y el nombre
+   del test cuando el `alcance_rutas` casa con el archivo tocado.
+
+5. **Se actualizan, no se generan una vez y se olvidan.** Un test de invariante que quedó
+   desalineado con el código real (porque el modelo cambió de forma, o la política se afinó)
+   y sigue "pasando" por accidente es peor que no tenerlo — dice PASS sobre algo que ya no
+   prueba. La detección de cambios de «Corridas siguientes» (abajo) cubre esto igual que a
+   los `senal` de grep: si D1 encuentra que la evidencia que originó el test cambió, o si la
+   Capa 1/3/4 que lo motivó cambió de versión en la skill/memoria, el test entra a
+   revisión — no se asume vigente solo porque sigue en verde.
 
 ## Recompilar y verificar
 
@@ -130,7 +193,10 @@ versión. El estado de cada corrida se guarda en
   "skill_commit": "ff9e75d8d16c7e53db662952f4b4d38561f9ecdf",
   "memory_commit": "cb535d43776edb2a7e9b2b3415cb09cc4a0d3431",
   "corpus_version_seen": "<fecha de company-policies/index.md en esa corrida>",
-  "lockfile_hashes": { "composer.lock": "<sha256>", "package-lock.json": "<sha256>" }
+  "lockfile_hashes": { "composer.lock": "<sha256>", "package-lock.json": "<sha256>" },
+  "guard_tests": {
+    "TenantIsolationGuardTest.php": { "regla_id": "REG-XXX", "evidencia_hash": "<sha256 del fragmento de código que originó el test>" }
+  }
 }
 ```
 
@@ -155,9 +221,16 @@ Al volver a correr sobre un proyecto que ya tiene este archivo:
    librerías nuevas o con versión mayor cambiada.
 5. **Capa 6 (proyecto).** Siempre se relee — es la más barata y la que menos cambia por fuera
    de esta misma corrida.
+6. **Tests de invariante generados (`guard_tests`).** Por cada test ya generado, recalcula el
+   hash del fragmento de código real que lo originó (la evidencia de D1 que le dio forma). Si
+   difiere del guardado, el código que el test protege cambió de forma — el test entra a
+   revisión (puede seguir siendo válido, puede necesitar ajustarse, puede haber quedado
+   obsoleto porque el patrón que motivó la política ya no existe). **No se asume vigente solo
+   porque sigue en verde**: un test desalineado que aún pasa por casualidad es el resultado
+   más engañoso de todos.
 
 Si `distill-guard-state.json` **no existe** (primera corrida, o un proyecto de antes de que
-este archivo existiera), no hay ancla: trátalo como corrida completa de las cinco capas, sin
+este archivo existiera), no hay ancla: trátalo como corrida completa de las seis capas, sin
 excepción, y créalo al cerrar. Actualiza el archivo (los tres commits/hashes y `last_run`) al
 final de cada corrida, éxito o no — si falló a medias, dejar el estado viejo haría creer a la
 siguiente corrida que ya cubrió algo que no cubrió.
@@ -189,3 +262,8 @@ distilarla antes de la primera escritura. Ver `SKILL.md` Fase 0 (Rama A) y `setu
   mismo criterio de deduplicación que `/learn-from`.
 - Optimiza tokens: D1 usa Glob/Grep dirigido por lo que cada política necesita verificar, no
   un barrido completo del árbol; resume por política, no transcribas el código encontrado.
+- Un invariante real sin patrón de grep seguro no es automáticamente `sin_firma`: primero se
+  evalúa si un test lo puede verificar. `sin_firma` es el último recurso, no el segundo.
+- Los tests generados viven solo en `.orchestrator/guard-tests/`, nunca mezclados en el
+  suite propio del proyecto, y se cablean al runner real — un test que nadie ejecuta no
+  cuenta como exigible.

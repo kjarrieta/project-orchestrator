@@ -148,6 +148,15 @@ Notas del esquema:
   - `grep_requerido` — si aparece `patron`, entonces DEBE aparecer también
     `requiere_ademas` en el mismo archivo/cambio (p. ej. mutación ⇒ `authorize`).
   - `test_requerido` — el dominio no se da por bueno sin un test nombrado que lo pruebe.
+    Es la vía para invariantes reales que un grep no puede expresar porque exigen evaluar
+    **comportamiento**, no texto (aislamiento de tenant, autorización con el rol correcto,
+    un `select` que solo acepta ids reales, redondeo de dinero) — no confundir con
+    `sin_firma`: si el invariante es real y un test lo puede verificar, esta es la salida,
+    no la prosa sin más. El test mismo vive en `.orchestrator/guard-tests/<lenguaje>/`,
+    separado del suite propio del proyecto (ver `commands/distill-guard.md`, «Cuando el
+    patrón es un test, no una regex»), y se actualiza cuando el código o la política que
+    lo originó cambian — un test que sigue en verde por desalineación es peor que no
+    tenerlo.
 - **`alcance_rutas`** acota a qué archivos aplica la entrada, para no verificar de más.
 - **`test_regresion`** nombra la prueba que demuestra el invariante. Su ausencia es
   `UNVERIFIED`, no `PASS` (ver `production-gate.md`, "PASS requiere evidencia").
