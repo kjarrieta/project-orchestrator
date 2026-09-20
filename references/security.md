@@ -103,6 +103,40 @@ Dos controles que se prueban siempre, en toda ruta que reciba un identificador o
   el dato de la URL es defensa en profundidad contra los vectores de fuga de la URL, no
   un sustituto de TLS ni de la autorización.
 
+## Política de módulos CRUD y de cambio de estado (permisos, por proyecto)
+
+Toda funcionalidad, módulo o formulario que maneje registros —**crear, consultar, editar,
+eliminar, activar, suspender o cualquier cambio de estado**— exige autorización en el punto
+de mutación (y de consulta, cuando el dato no es público) según el **modelo de permisos
+vigente de este proyecto**. No hay un mecanismo único que se asuma: cada proyecto puede
+implementar roles, permisos por usuario directo, políticas por recurso (`Policy`/`Gate`),
+atributos (ABAC), o una combinación — la elección la fija la entrevista de
+`setup.md` Paso 3.6b, **nunca este brief inventándola**. Lo que **sí** es fijo,
+independiente del mecanismo elegido:
+
+- **Ninguna acción de creación/consulta/edición/eliminación/activación/suspensión/cambio de
+  estado se autoriza en el cliente.** La vista puede ocultar el botón; el servidor **siempre**
+  reverifica en el propio método que ejecuta la mutación (BFLA — OWASP API Security Top 10
+  nº5). Confiar en que "el botón no aparece" es el mismo error de raíz que IDOR/BOLA arriba:
+  ocultar no es autorizar.
+- **Cambio de estado es una mutación como cualquier otra**, no una excepción — "activar",
+  "suspender", "aprobar", "archivar" mueven datos igual que un `update()` y se autorizan
+  igual. Es un punto de fuga frecuente porque a menudo vive en un método aparte
+  (`activate()`, `suspend()`, `toggleStatus()`) que no pasa por el mismo guard que
+  `update()`.
+- **Cada rama de un método con múltiples caminos autoriza igual.** Si un componente
+  autoriza en la rama principal pero tiene una rama secundaria (bulk, "acción rápida",
+  atajo desde otra vista) que llega a la misma mutación por otro método, esa rama exige la
+  misma verificación — ver el patrón ya documentado en `frontend.md` (asimetría de
+  validación entre ramas del mismo método, MOD3-R3), que aplica igual a autorización.
+- **Este es el ejemplo canónico de invariante duro** (`regression-ledger.md`, clase 2):
+  no requiere una violación previa para exigirse. En cuanto la entrevista de `setup.md`
+  Paso 3.6b fija el mecanismo del proyecto, distílalo de inmediato como `senal`
+  (`grep_requerido`) con `alcance_rutas` amplio sobre el patrón de archivo real donde viven
+  estas acciones (Controllers, componentes Livewire, Actions…) — no esperes a que un módulo
+  nuevo se cuele sin autorización para recién entonces bloquear el siguiente. Ver
+  `regression-ledger.md`, «Distilación proactiva vs. reactiva», y `commands/distill-guard.md`.
+
 ## Patrones de confianza y de riesgo en stack PHP/Laravel
 
 Durante la auditoría, antes de declarar PASS o OBSERVADO, valida que el patrón
@@ -134,6 +168,8 @@ sea efectivamente el patrón del framework, no una versión degenerada.
 | Rutas `Route::post/put/patch/delete` fuera de un grupo `auth:sanctum` en `routes/api.php` | Cualquier cliente anónimo puede mutar datos. El throttle limita la tasa pero no autentica — no cuenta como mitigación | CRITICAL (operación admin) / HIGH (operación de usuario) |
 | `'enabled' => env('TOOL_ENABLED', true)` en config de herramientas de diagnóstico (Telescope, Debugbar, Ignition) | Herramienta activa por defecto en cualquier entorno sin override; registra requests completos, queries SQL, excepciones y variables de entorno | HIGH |
 | `env('SESSION_SECURE_COOKIE')` sin valor por defecto en `config/session.php` | PHP evalúa `null` como `false`; la cookie de sesión se envía sobre HTTP aunque se use HTTPS — invisible, ningún test falla por esto | HIGH |
+| `->where('col', 'LIKE', "%{$valor}%")` con `$valor` del cliente sin escapar `%`/`_` | Inyección de comodín: un valor compuesto solo de `%`/`_` (ej. `?campo=%`) casa con cualquier fila — el filtro deja de filtrar y expone el conjunto completo (bypass de filtro, no solo ruido de resultados) | HIGH (endpoint público) / MEDIUM (panel autenticado) — ver `memory/php/security.md` |
+| `LIKE "%valor%"` sobre un campo que en realidad es un slug/enum de valores discretos (comparado por igualdad en el resto del mismo endpoint) | Falsos positivos por coincidencia parcial (`casa` casa con `casa-campestre`) — inconsistente con los demás filtros del mismo query | MEDIUM |
 
 ### Verificación específica para componentes Livewire
 

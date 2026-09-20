@@ -52,7 +52,10 @@ Dos clases de entrada, y **solo** estas:
 2. **Invariante duro** — una regla que el sistema debe cumplir siempre y cuya violación
    es de las que bloquean producción (ver `production-gate.md`): aislamiento de tenant,
    autorización en el punto de mutación, dinero como decimal, inmutabilidad de snapshot,
-   transiciones de estado válidas, idempotencia de jobs, FK sin orfandad.
+   transiciones de estado válidas, idempotencia de jobs, FK sin orfandad. La autorización
+   en módulos CRUD y de cambio de estado (crear/consultar/editar/eliminar/activar/
+   suspender) es el caso de trabajo de esta clase — ver `security.md`, «Política de
+   módulos CRUD y de cambio de estado», y `setup.md` Paso 3.6b.
 
 No entra: preferencias de estilo, mejoras opinables, TODOs. Eso vive en políticas o en
 la memoria del Aprendiz, no aquí. El registro es corto a propósito: cada entrada cuesta

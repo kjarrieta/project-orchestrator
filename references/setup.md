@@ -112,6 +112,43 @@ preferencia, se adopta la convención dominante detectada; **nunca se impone una
 No confundir con las políticas realmente globales (documentación de API, propagación de
 obligatoriedad de la BD, manejo de datos sensibles en URL), que sí aplican a todo proyecto.
 
+## Paso 3.6b — Convención de módulos CRUD y permisos (por proyecto)
+
+Mismo patrón que el Paso 3.6, para un dominio distinto: **qué mecanismo de permisos usa
+este proyecto** para las funcionalidades, módulos o formularios que manejan registros
+(crear, consultar, editar, eliminar, activar, suspender o cambiar de estado). No es
+opcional saltarlo con "ya sé cómo se hace": el mecanismo varía por proyecto y asumir uno
+es exactamente la clase de suposición que la skill prohíbe (ver `security.md`, «Política
+de módulos CRUD y de cambio de estado»).
+
+1. **Detecta** el mecanismo dominante ya implementado, con evidencia `ruta:línea`: roles
+   (columna en `users`, tabla de roles), paquete de permisos (Spatie `laravel-permission`,
+   similar), políticas por recurso (`Policy`/`Gate` de Laravel, o su equivalente en otro
+   framework), permisos por usuario directo (tabla pivote usuario↔permiso sin rol
+   intermedio), ABAC (reglas por atributo del sujeto/recurso), o una combinación.
+2. **Si hay un mecanismo dominante claro**, propónlo como estándar a confirmar. **Si no lo
+   hay** (proyecto nuevo, o el existente es inconsistente entre módulos), **pregunta a la
+   persona** cuál va a implementar — no se impone uno nuevo ni se asume el "más común"
+   sin preguntar. Mismas opciones típicas del punto 1, más la combinación que el proyecto
+   necesite (p. ej. roles para navegación + Policy por recurso para el detalle).
+3. **Registra la elección** en `.orchestrator/conventions.md`, con: el mecanismo elegido,
+   dónde vive la fuente de verdad de permisos (tabla, config, servicio), y qué acciones
+   cubre (crear/consultar/editar/eliminar/activar/suspender/cambio de estado — declara
+   explícitamente si alguna de estas queda fuera del alcance del mecanismo, en vez de
+   dejarlo implícito).
+4. **Distílalo de inmediato**, no lo dejes como convención en prosa: es el ejemplo canónico
+   de invariante duro proactivo (`regression-ledger.md`, «Distilación proactiva vs.
+   reactiva»). Con el mecanismo ya nombrado y el patrón de archivo real del proyecto (de
+   dónde salió la evidencia del punto 1, o la forma idiomática del framework si es
+   greenfield), define el `senal` (`grep_requerido`: si el método coincide con un patrón de
+   acción mutante — `create`, `store`, `update`, `delete`, `destroy`, `activate`, `suspend`,
+   `toggleStatus`, `changeStatus`, y equivalentes del idioma del proyecto —, debe aparecer
+   también la llamada de autorización del mecanismo elegido) con `alcance_rutas` amplio
+   (todo el tipo de archivo, no el módulo puntual que originó la entrevista). Corre
+   `/distill-guard` o crea la entrada directo en `regression-ledger.json` y `/guard-sync`.
+   El objetivo es que el **siguiente** módulo que maneje registros, no solo el actual, nazca
+   protegido.
+
 ## Paso 3.7 — Defensa anti-regresión (Capas A y C)
 
 La pieza que hace que "lo documentado no vuelva a colarse". Ver `anti-regression.md`.

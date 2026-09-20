@@ -19,7 +19,11 @@ uso. Lee `evidence-protocol.md` antes de empezar.
 - **Accesibilidad (WCAG)**: contraste, foco, navegación por teclado, roles ARIA y
   textos alternativos como parte del estándar, no como extra.
 - **Autorización visible y real**: lo que un rol no puede hacer no se muestra, y
-  además está bloqueado en el backend (la vista no es el guardián).
+  además está bloqueado en el backend (la vista no es el guardián). Para módulos que
+  manejan registros (crear, consultar, editar, eliminar, activar, suspender, cambio de
+  estado), el mecanismo de permisos es el que el proyecto ya fijó como estándar
+  (`setup.md` Paso 3.6b) — no se inventa uno nuevo por módulo; ver `security.md`,
+  «Política de módulos CRUD y de cambio de estado».
 - **Datos sensibles fuera de la URL (política global)**: la vista nunca pone datos
   sensibles (tokens, id de sesión, PII, parámetros internos) en la query string ni en la
   ruta —fugan por historial, `Referer`, logs y proxies (CWE-598)—; los envía por **POST,
