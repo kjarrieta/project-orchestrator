@@ -152,16 +152,86 @@ La pieza que hace que "lo documentado no vuelva a colarse". Ver `anti-regression
    número es la superficie real que va a caer en auditoría humana. Preséntalo en la
    compuerta; destilar las de mayor severidad a `senal` es trabajo de la corrida, no
    deuda invisible.
+5. **Corre `/distill-guard` sobre este proyecto**, con el diagnóstico de la Fase 0 ya
+   fijado (stack, versiones, BD, arquitectura). No se limita a las políticas de esta
+   corrida: barre las cinco capas de conocimiento aplicables (universal de la skill,
+   empresa, agente-agnóstico, lenguaje/framework, librerías en cascada) e identifica,
+   con evidencia real, cuáles ya están implementadas, cuáles faltan y cuáles tienen un
+   patrón seguro para distilar ahora. En proyectos greenfield (Rama A de la Fase 0) esto
+   es **obligatorio** antes de la primera escritura de la Fase 4, no un paso posterior —
+   ver `regression-ledger.md`, «Distilación proactiva vs. reactiva».
 
 Todo esto se **propone y se escribe tras el visto bueno**; sin la Capa A el sistema
 funciona, pero pierde la garantía de "una regresión documentada no puede mergear", y sin
 el guard de Capa C la pierde *durante el desarrollo*, que es cuando más barata sale.
 
+## Paso 3.8 — Puntero al corpus de políticas de empresa (si existe)
+
+El corpus de `/policy-update` (`~/.claude/project-orchestrator/memory/company-policies/`)
+solo protege lo que pasa por la Fase 6. Una sesión de Claude Code que edita este proyecto
+**sin** invocar `/orchestrator` nunca lo ve — y la mayoría de sus entradas son proceso
+(Git flow, plantillas de MR, revisión) que ninguna firma de guard puede hacer cumplir
+igual. La única forma barata de que esas normas lleguen a cualquier sesión, con o sin la
+skill, es que el propio `AGENTS.md`/`CLAUDE.md` del proyecto las señale.
+
+1. **Si `company-policies/index.md` no existe**, omite este paso — no hay corpus que
+   señalar. No es un hueco: se declara `SIN-CORPUS` igual que en la Fase 6.
+2. **Si existe**, propone (nunca escribe sin aprobación, misma compuerta que los hooks)
+   anexar al `AGENTS.md` del proyecto (o crearlo si no existe; si el proyecto usa
+   `CLAUDE.md` como archivo primario, anexa ahí o agrega `@AGENTS.md` si aún no lo
+   incluye) un bloque corto, **no el corpus completo** — cargar ~30KB en cada turno
+   viola la disciplina de coste de `SKILL.md` › Presupuesto de corrida:
+
+   ```
+   Antes de crear ramas, commits, Merge Requests, endpoints de API u otro trabajo
+   cubierto por norma corporativa, consulta
+   `~/.claude/project-orchestrator/memory/company-policies/index.md` y lee el dominio
+   aplicable (`desarrollo.md`, `apis.md`, `seguridad.md`, ...). Aplica aunque no se
+   esté ejecutando la skill `project-orchestrator`.
+   ```
+
+3. **Si ya hay un puntero equivalente** (revisa antes de proponer — grep
+   `company-policies` sobre `AGENTS.md`/`CLAUDE.md`), no lo dupliques.
+4. Registra en `.orchestrator/state.json` que este paso corrió, para no re-proponerlo en
+   cada corrida — solo se revisita si el corpus gana su primer dominio nuevo relevante a
+   este proyecto (p. ej. este proyecto no tenía por qué señalar `desarrollo.md` antes de
+   que existiera) o si la persona pide refrescarlo.
+
+## Paso 3.9 — Sincronizar el conocimiento ya escrito del proyecto (equivalente a `/learn-from`)
+
+El bootstrap hasta aquí solo empuja conocimiento hacia el proyecto (memoria global,
+puntero de políticas). Un proyecto existente casi siempre ya trae aprendizaje propio
+escrito antes de que el orquestador llegara — un `README`, `CONTRIBUTING`, ADRs en
+`docs/`, reglas en `.cursor/` o `.github/copilot-instructions.md`, convenciones que otro
+agente dejó documentadas. Ese conocimiento no debe quedarse aislado en este repositorio si
+generaliza a otros proyectos del mismo lenguaje.
+
+1. **Solo en el primer bootstrap** de este proyecto (no en corridas posteriores; si el
+   proyecto ya tiene `.orchestrator/state.json` con este paso marcado, sáltalo salvo que
+   la persona pida re-sincronizar).
+2. Ejecuta el mismo procedimiento que `commands/learn-from.md` sobre la ruta de este
+   proyecto — mismas fuentes a barrer, misma clasificación en tres niveles (proyecto /
+   lenguaje+versión / universal), misma compuerta de aprobación antes de escribir en la
+   memoria del orquestador. No reimplementes la lógica: invoca ese mismo rol de
+   Retroalimentación con este proyecto como argumento.
+3. Es **best-effort y acotado**: si el proyecto es grande, prioriza `docs/`, `README`,
+   `CONTRIBUTING` y archivos de reglas de otros agentes por encima de barrer el código
+   completo — el bootstrap no es una auditoría de código.
+4. Presenta el resumen junto con el resto del reporte del Paso 4 (qué se extrajo, a qué
+   nivel, qué quedó dudoso) y escribe en la memoria global **solo tras el visto bueno** —
+   la misma regla de `learn-from.md`, sin excepción por ser parte del bootstrap.
+5. Registra en `.orchestrator/state.json` que este paso corrió (con fecha), para que
+   `/guard-sync` y corridas futuras sepan que este proyecto ya aportó su conocimiento
+   previo y no haga falta repetirlo de cero.
+
 ## Paso 4 — Confirmar
 
-Reporta qué se instaló (agentes creados/actualizados, hooks propuestos o escritos) y
-sigue con la Fase 0. En corridas posteriores, el bootstrap se salta salvo que la skill
-se haya actualizado.
+Reporta qué se instaló (agentes creados/actualizados, hooks propuestos o escritos), si se
+anexó el puntero al corpus de políticas (Paso 3.8) o por qué no (`SIN-CORPUS`, o ya
+existía), y el resumen de la sincronización de conocimiento previo del proyecto (Paso 3.9):
+qué se extrajo, a qué nivel de memoria fue y qué quedó pendiente de aprobación. Luego sigue
+con la Fase 0. En corridas posteriores, el bootstrap se salta salvo que la skill se haya
+actualizado.
 
 ## Regla
 

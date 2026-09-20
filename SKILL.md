@@ -217,6 +217,14 @@ multiempresa, integraciones, restricciones (stack, plazos, equipo, hosting). Con
 respuestas propones stack justificado contra doc oficial; después el Frontend conduce la
 entrevista de diseño.
 
+**Obligatorio en esta rama, apenas el stack queda fijado y antes de que la Fase 4 escriba
+código de aplicación:** corre `/distill-guard` (`commands/distill-guard.md`). Un proyecto
+greenfield no tiene código previo que una auditoría pueda encontrar incumpliendo nada, así
+que la vía reactiva del Aprendiz (promover tras una regresión confirmada) nunca se
+dispara aquí. La única forma de que el código nazca ya cumpliendo el conocimiento fijo de
+la skill (formularios, archivos, seguridad, BD…) es distilarlo en `senal` **antes** de la
+primera escritura. Ver `regression-ledger.md`, «Distilación proactiva vs. reactiva».
+
 **Rama B — Proyecto existente:**
 
 2. **COMPUERTA INCREMENTAL — este paso va PRIMERO y puede cerrar la Fase 0 entero.** No
@@ -370,8 +378,30 @@ final del subagente) y detecta conflictos. Valida primero el `veredicto.json` de
 agente; el `.md` es la narrativa (esquema y precedencia en `evidence-protocol.md`).
 Desempate no negociable: **integridad de datos y seguridad ganan** sobre rendimiento,
 elegancia o conveniencia. Informe sin evidencia o subagente que no entrega: relánzalo
-acotado o regístralo como [HUECO]; no lo rellenes tú. **Versiona la corrida**: si
-`.orchestrator/` ya existe, archívala en `.orchestrator/runs/<fecha>/` antes de sobrescribir.
+acotado o regístralo como [HUECO]; no lo rellenes tú.
+
+**Versiona la corrida, pero nunca por encima de un plan aún sin resolver.** Antes de
+tocar `10-plan-consolidado.md` del root, comprueba el estado de la compuerta del plan
+que ya está ahí (`20-production-gate.md` / `state.json` de esa misma corrida):
+
+- Si ese plan ya está **resuelto** (se aplicó en Fase 4–5, o la persona lo descartó
+  explícitamente en una compuerta anterior), archívalo en `.orchestrator/runs/<run_id>/`
+  como hasta ahora y produce el nuevo `10-plan-consolidado.md` en el root.
+- Si ese plan sigue **pendiente de compuerta** (nadie dijo GO/aplicar ni lo descartó):
+  **no lo sobrescribas ni lo archives.** Es trabajo de otra corrida todavía vivo. Escribe
+  el plan de ESTA corrida en `.orchestrator/runs/<run_id>/10-plan-consolidado.md` (rama de
+  planeación propia, con su propio `20-production-gate.md`) y deja el root intacto. Dos o
+  más planeaciones pendientes pueden coexistir así sin pisarse: cada una vive en su
+  `run_id`, cada una con su propia compuerta, hasta que la persona decide cuál aplicar (o
+  pide fusionarlas explícitamente). `run_id` es la marca de tiempo de inicio de la corrida
+  (`YYYY-MM-DDTHH-mm`), fijada una vez en `00-ficha-de-hechos.md`/`state.json` y reusada
+  por todos los artefactos de esa misma corrida.
+- El modo **estado** (ver `commands/orchestrator.md`) reporta TODOS los planes con
+  compuerta pendiente que encuentre (root + cualquier `runs/<run_id>/` sin resolver), no
+  solo el último — para que nunca sea una sorpresa que hay más de uno esperando decisión.
+- El modo **aplicar** exige que quede claro CUÁL plan se ejecuta cuando hay más de uno
+  pendiente: si el root y alguna rama en `runs/` están ambos sin resolver, detente y pide
+  el `run_id` explícito en vez de asumir el del root por defecto.
 
 Produce `.orchestrator/10-plan-consolidado.md`: hallazgos priorizados por riesgo, cambios
 con cita oficial, orden de aplicación por dependencias.
@@ -557,7 +587,9 @@ fase-6: SIN-CORPUS (no existe company-policies/; no bloquea)
 ├── 90-aprendizajes.md
 ├── state.json              (schema_version, commit, hashes y checkpoints por paso por agente:
 │                           habilita la compuerta incremental de la Fase 0 y la reanudación)
-└── runs/<fecha>/           (corridas anteriores archivadas)
+└── runs/<run_id>/          (corridas archivadas — resueltas, o planeaciones paralelas
+                              aún pendientes de compuerta que no pisaron el root: ver
+                              regla de versionado de la Fase 2)
 
 El `policy-index.md` (Capa C) vive en `.claude/policy-index.md`, y la Capa A ejecutable
 (linter + tests de arquitectura + pre-commit + CI + baseline) en el repo del proyecto.
