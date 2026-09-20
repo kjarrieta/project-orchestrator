@@ -37,7 +37,9 @@ git -C ~/.claude/skills/project-orchestrator config core.hooksPath hooks
 ```
 
 Desde ahí, los hooks de `hooks/` corren `scripts/sync-commands.ps1` después de cada
-`pull`, `merge`, `checkout` o `rebase`, y dejan `~/.claude/commands/` al día —incluida la
+`pull`, `merge`, `checkout`, `rebase` **o `commit`** (editar un comando y confirmarlo
+directo en el working tree, sin pasar por `pull`, es el caso más común al desarrollar la
+propia skill, y quedaba sin cubrir), y dejan `~/.claude/commands/` al día —incluida la
 variante opencode, **pero solo si `~/.config/opencode/commands` ya existe**, para no mezclar
 variantes. El script no borra nada: sobrescribe lo que viene de la skill y respeta cualquier
 comando propio que ya vivieras en el destino. Es idempotente; podés correrlo a mano cuando
