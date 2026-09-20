@@ -143,15 +143,28 @@ grep no. El compilador ya distingue esto en su esquema (`senal.tipo: "test_reque
    la entrada del registro que lo exige — la trazabilidad inversa (qué política generó este
    test) tiene que ser inmediata.
 
-3. **Se cablea al runner real del proyecto, o no cuenta como exigible.** Un test en una
-   carpeta que nadie ejecuta es exactamente tan inerte como un `sin_firma` — peor, porque
-   aparenta cobertura. Verifica y, si falta, propone (con la misma compuerta de aprobación
-   que un hook) la entrada de configuración que lo incluye: `<testsuite>` en `phpunit.xml`
-   apuntando a `.orchestrator/guard-tests/php`, `testMatch`/`roots` en la config de Jest,
-   `testpaths` en `pytest.ini`, etc. Sin runner de pruebas configurado en el proyecto, no se
-   inventa uno solo para esto: se declara el hueco explícito (mismo criterio que un stack sin
-   Capa A de `setup.md` Paso 3.7) y el test generado queda pendiente de que el proyecto tenga
-   dónde correr.
+3. **Se cablea al runner real del proyecto, y se prueba que de verdad corre — no basta con
+   proponer la config.** Un test en una carpeta que nadie ejecuta es exactamente tan inerte
+   como un `sin_firma` — peor, porque aparenta cobertura. Ningún agente necesita saber que
+   `.orchestrator/guard-tests/` existe: el punto de cablearlo al runner real (`<testsuite>`
+   en `phpunit.xml` apuntando a `.orchestrator/guard-tests/php`, `testMatch`/`roots` en la
+   config de Jest, `testpaths` en `pytest.ini`) es que **cualquiera que corra el comando
+   normal del proyecto** (`composer test`, `npm test`, `pytest`) los ejecuta sin buscarlos,
+   igual que cualquier otra carpeta de tests ya declarada. Pero proponer esa línea de config
+   no es lo mismo que confirmar que funciona — mismo error que ya se cometió con el hook de
+   escritura antes de probarlo con un evento real (`guard-sync.md`, Paso 4). Por eso, tras
+   cablear:
+   - **Corre el comando de test real del proyecto** (no un mock, no una simulación) y
+     confirma que el test nuevo **aparece en la salida** (colectado/ejecutado), con su
+     nombre completo — un `<testsuite>` mal apuntado o un `namespace`/autoload que no
+     resuelve deja el test tan invisible como si la carpeta no existiera, y nadie lo nota
+     hasta que alguien lo busca a mano.
+   - Si el test no aparece en la salida, el cableado está mal — corrígelo y vuelve a correr
+     antes de dar el paso por cerrado. No se reporta "cableado" sin haber visto el nombre del
+     test en la salida real del comando.
+   - Sin runner de pruebas configurado en el proyecto, no se inventa uno solo para esto: se
+     declara el hueco explícito (mismo criterio que un stack sin Capa A de `setup.md` Paso
+     3.7) y el test generado queda pendiente de que el proyecto tenga dónde correr.
 
 4. **La entrada del registro apunta al test, no lo reemplaza.** En `regression-ledger.json`:
    `senal.tipo: "test_requerido"`, `senal.alcance_rutas` sobre el dominio real (igual que un
