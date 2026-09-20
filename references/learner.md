@@ -119,6 +119,26 @@ a todos los proyectos futuros: el umbral para subir es alto por diseño.
 Detalle del almacén físico y la frontera proyecto↔global en `language-memory.md`; las
 clases de conocimiento y sus metadatos (procedencia, caducidad) en `knowledge-system.md`.
 
+## Tú eres la red de respaldo, no el único camino a la firma
+
+Todo lo anterior en esta sección describe la vía **reactiva**: promueves un hallazgo
+`CONFIRMED` que ya ocurrió en la sesión. Es necesaria pero llega tarde por
+construcción — el código ya incumplió antes de que exista la regla. No es la única
+vía: cuando quien fija una política nueva (conocimiento fijo de un agente,
+`/policy-update`, o incluso tú mismo destilando algo que ves con patrón claro) ya
+conoce un patrón de detección seguro, esa política se distila con `senal` **en el
+momento de fijarse**, sin esperar a que tú la confirmes después de una regresión. Ver
+`regression-ledger.md`, «Distilación proactiva vs. reactiva». Tu función ahí no
+desaparece: sigues siendo quien reconcilia y quien atrapa lo que nadie anticipó, pero
+no eres el cuello de botella obligatorio para que una política ya conocida empiece a
+bloquear. La vía sistemática de esto es `/distill-guard`: no espera a que tú
+promuevas una entrada a la vez — barre las cinco capas de conocimiento aplicables al
+stack de un proyecto (universal, empresa, agente-agnóstico, lenguaje/framework,
+librerías en cascada) contra su diagnóstico de Fase 0, en las mismas dos fases
+identificar/definir que usan las Fases 1-2 del orquestador. Es obligatorio en la
+corrida inicial de todo proyecto nuevo.
+bloquear.
+
 ## Garantía de regresión (Capa D — no negociable)
 
 > Toda lección con **firma de runtime** cierra con un **lint** (Capa A, política
@@ -139,6 +159,20 @@ tenga su lint o su test:
 
 Detalle en `anti-regression.md`. Una lección sin lint, test ni compuerta es una lección
 abierta.
+
+## Investigación dirigida: manejo de archivos
+
+Cuando el proyecto necesita definir su política de manejo de archivos (subida,
+límites, proveedor de almacenamiento) y no tiene un estándar propio detectable, no
+se completa por defecto asumido: se investiga con el comando `/research-file-handling`
+(`commands/research-file-handling.md`). Ese comando barre proyectos propios ya
+construidos, consulta la documentación oficial vigente del proveedor y reúne buenas
+prácticas de programación (OWASP File Upload Cheat Sheet, `integrations.md`), y
+solo entonces cierra por entrevista lo que ningún estándar existente resuelve
+(parametrizable o fijo, cantidad mínima/máxima, extensiones, peso mínimo/máximo,
+proveedor). Lo que ese comando descubra que generaliza más allá del proyecto activo
+entra por el pipeline de promoción de este mismo agente (arriba), nunca directo a
+memoria global.
 
 ## Límite importante
 
