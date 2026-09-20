@@ -27,6 +27,79 @@ uso. Lee `evidence-protocol.md` antes de empezar.
   de confidencialidad es **TLS**; sacar el dato de la URL es defensa en profundidad, y no
   reemplaza la autorización de servidor sobre cada acción (la vista no es el guardián).
 
+## Política de campos de formulario (no se negocia)
+
+Aplica a todo formulario del proyecto, nuevo o existente. Es una extensión de
+**Consistencia** y de **Validación en profundidad**: define el contrato mínimo que
+cada campo debe cumplir en la vista, sabiendo que el servidor/BD es quien garantiza
+la verdad final (ver «Replicar la validación de la BD en la vista»).
+
+- **Validación por tipo de campo.** Cada campo valida según su naturaleza real, no
+  como texto libre genérico: email, teléfono, fecha, entero, decimal/precio, medida
+  (metros, litros, kg…), URL, documento de identidad, etc. La regla de tipo sale de
+  la restricción real de BD/dominio (tipo de columna, `CHECK`, enum) cuando existe.
+- **Restricción por juego de caracteres y control de inyección.** Cada campo acepta
+  solo el conjunto de caracteres que su tipo permite (letras/dígitos/separadores
+  propios del formato) y rechaza o escapa el resto — en particular los que pueden
+  alterar una consulta a la BD (`'`, `"`, `;`, `--`, `/*`, `<`, `>`, backslash) o
+  inyectar marcado (XSS). Esto es **defensa en profundidad en la vista**: la barrera
+  real sigue siendo *prepared statements*/ORM parametrizado y sanitización en
+  servidor (CWE-89, CWE-79) — la vista nunca es el único control, solo reduce ruido
+  y da feedback temprano. Dos juegos de caracteres fijos por tipo de campo, salvo que
+  el dominio del proyecto exija otro (verificado, no asumido):
+  - **Campos de identificación** (documento de identidad, código, referencia interna):
+    **solo letras y números** (alfanumérico). Ningún carácter especial, ni siquiera
+    guion o punto, salvo que el formato oficial del documento lo exija (verificar
+    contra la especificación real, p. ej. un formato nacional con guion fijo) — en
+    ese caso el separador permitido es el único que ese formato define, no cualquiera.
+  - **Campos de dirección**: letras, números, espacio, `-` y `#` (los signos propios
+    de una dirección: "Calle 10 # 5-30"). Ningún otro carácter especial.
+- **Formateo por tipo de dato.** La presentación respeta el tipo: enteros sin
+  decimales ni separador de miles salvo que el estándar del proyecto lo pida;
+  precios/moneda con separador decimal y de miles, símbolo y precisión consistentes
+  en todo el proyecto; medidas (m, cm, L, kg, etc.) con su unidad visible y la
+  precisión que el dominio exija. Un mismo tipo de dato se formatea igual en todas
+  las vistas — es una instancia de **Consistencia**.
+- **Placeholders.** Todo campo de entrada libre lleva placeholder que ejemplifica
+  el formato esperado (no un texto decorativo ni una repetición del label). El
+  placeholder nunca sustituye al label ni transporta la única pista de
+  obligatoriedad (WCAG: no depender solo de placeholder para instrucciones).
+- **Mensajes de error por campo obligatorio.** Todo campo requerido, al quedar vacío
+  o inválido, muestra un mensaje específico de qué falta o qué formato se espera —
+  nunca un mensaje genérico tipo "campo inválido" sin decir cuál ni por qué.
+- **Mensajes de error a nivel de formulario.** Además del error por campo, el
+  formulario resume el estado de envío fallido (p. ej. "revisa los campos
+  marcados") y refleja errores que solo el servidor puede detectar (duplicados,
+  reglas de negocio, fallos de red) sin perder los datos ya ingresados.
+- **Estándar del proyecto o pregunta directa.** Todo lo anterior (formato de
+  precios, de medidas, tono y ubicación de mensajes de error, estilo de
+  placeholder) sigue el estándar ya vigente en el proyecto, verificado con
+  evidencia `ruta:línea`. Si el proyecto **no tiene** un estándar detectable para
+  alguno de estos puntos, no se asume ni se inventa: se **pregunta a la persona
+  usuaria** cuál se va a implementar y se registra la respuesta como estándar del
+  proyecto de ahí en adelante (mismo criterio que en `architect.md` para patrones
+  sin precedente).
+- **Campos dependientes y carga obligatoria o parcial.** Cuando un campo condiciona
+  la obligatoriedad o las opciones de otro (p. ej. "país" habilita "provincia", o
+  marcar una casilla vuelve obligatorio un grupo de campos), esa dependencia se
+  valida en la vista en ambos sentidos: el campo dependiente no se puede enviar
+  vacío si su disparador lo exige, y se limpia/deshabilita si el disparador cambia
+  a un estado que ya no lo requiere. La dependencia declarada en la vista debe
+  existir también en el servidor (misma regla de propagación de obligatoriedad).
+- **Flujo por teclado sin mouse (control de tabulación).** Todo formulario es
+  operable de principio a fin solo con teclado: el orden de `tab` sigue el orden
+  visual/lógico de los campos, no deja trampas de foco, permite enviar con `Enter`
+  donde el patrón del framework lo soporte, y no se apoya en clics obligatorios
+  (selects custom, date pickers, checkboxes) sin equivalente accesible por teclado.
+  Es una instancia de **Accesibilidad (WCAG)**, aplicada específicamente al flujo
+  de formulario.
+
+**Esto es conocimiento fijo del agente, no una regla que ya bloquea escritura.** En
+cuanto detectes en un proyecto un patrón seguro para verificar alguno de estos puntos
+(p. ej. la regla de validación real de un campo de identificación en su framework),
+distílalo con `senal` de inmediato — no esperes a que una violación real lo dispare.
+Ver `regression-ledger.md`, «Distilación proactiva vs. reactiva».
+
 ## Conocimiento flexible (lo aprendes de ESTE proyecto)
 
 El framework de frontend y su versión (Angular, React, Vue, Blade/Livewire…), su

@@ -65,6 +65,49 @@ Con criterio OWASP (File Upload Cheat Sheet):
   límites de tamaño máximo y mínimo, y sin permiso de ejecución.
 - Escanea cuando aplique; valida ZIPs antes de descomprimir (anti zip-bomb).
 
+### Política de negocio del manejo de archivos (no se negocia definirla)
+
+Lo anterior es el criterio de **seguridad**, innegociable. Pero cada carga de
+archivos tiene además parámetros de **negocio** que varían por proyecto y módulo, y
+que nunca se asumen ni se copian de otro proyecto sin verificar — se **investigan y
+se preguntan** (mismo criterio que «Estándar del proyecto o pregunta directa» en
+`frontend.md`):
+
+- **Parametrizable o fijo.** Decidir explícitamente si el límite/regla es
+  configurable en runtime (por tenant, por tipo de documento, editable desde un
+  panel de administración) o una constante fija en código/config. No dejar esto
+  implícito: una constante que debería ser parametrizable obliga a un despliegue
+  por cada cambio de negocio; un parámetro innecesario es complejidad sin uso.
+- **Cantidad mínima y máxima** de archivos permitidos por carga (¿es válido enviar
+  cero archivos?, ¿hay tope duro o un soft-limit con confirmación del usuario?).
+- **Extensiones permitidas**, siempre como **allow-list** explícita (nunca
+  deny-list), y declarar si varía por tipo de documento o módulo del mismo
+  proyecto.
+- **Peso máximo y peso mínimo permitido** por archivo (y, si aplica, acumulado por
+  carga completa). Un mínimo en 0 puede dejar pasar archivos vacíos o truncados sin
+  que nadie lo note.
+- **Proveedor o servidor de carga** (local, S3, GCS, Azure Blob, Drive, FTP/SFTP
+  propio…), con la razón de la elección (costo, ya en uso en el proyecto, requisito
+  contractual del cliente) y sus credenciales/mínimo privilegio ya resueltos según
+  la sección de proveedores de este mismo documento.
+
+**Si el proyecto ya tiene un estándar detectable** (código, `CLAUDE.md`, ADR), se
+usa como propuesta a confirmar, con su evidencia `ruta:línea`. **Si no lo tiene**, no
+se inventa ni se asume un valor "razonable": se **pregunta a la persona usuaria** cuál
+se va a implementar para cada punto de la lista, y la respuesta queda registrada
+como estándar del proyecto de ahí en adelante. Para investigar antes de preguntar
+—cómo lo resuelven otros proyectos propios, qué dice la doc oficial vigente del
+proveedor, qué recomienda la buena práctica del lenguaje/framework— usa el comando
+`/research-file-handling` (ver `learner.md` y `COMMANDS.md`), que ejecuta esa
+investigación en tres frentes antes de cerrar la entrevista.
+
+**Una vez decidido, distila el `senal` en el mismo momento**, no después de que un
+archivo se cuele fuera del límite acordado (p. ej. `grep_requerido` sobre la regla de
+validación de tamaño/extensión del FormRequest o middleware que la aplica). Es una
+decisión de negocio recién fijada con patrón de detección conocido de antemano: no
+hace falta esperar a que la viole nadie. Ver `regression-ledger.md`, «Distilación
+proactiva vs. reactiva».
+
 ## Canales de comunicación (push/FCM, APNs, email, SMS, in-app)
 
 Cuando el proyecto envía notificaciones, aplica estas buenas prácticas (verifica
