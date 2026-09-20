@@ -68,6 +68,30 @@ la verdad final (ver «Replicar la validación de la BD en la vista»).
   el formato esperado (no un texto decorativo ni una repetición del label). El
   placeholder nunca sustituye al label ni transporta la única pista de
   obligatoriedad (WCAG: no depender solo de placeholder para instrucciones).
+- **`select` sin opción vacía real (falso valor por defecto).** Un `<select>` sin una
+  opción "sin seleccionar" explícita **muestra visualmente la primera opción de la
+  lista como seleccionada**, aunque la persona nunca haya interactuado con el campo y
+  el modelo/variable enlazada no tenga ningún id real asignado. El resultado es el
+  peor tipo de bug de formulario: se ve un valor elegido, pero al enviar no se guarda
+  nada (o se guarda el primer registro de la lista por accidente, sin que nadie lo
+  haya elegido) — ni la persona ni una validación superficial lo detectan, porque
+  visualmente el campo no está vacío.
+  - Todo `select` lleva una **opción de placeholder explícita** ("Seleccione…", "Todos",
+    según el caso) con **valor vacío/`null`** (`value=""` o equivalente del framework),
+    **antes** de las opciones reales — nunca se deja que el navegador preseleccione la
+    primera opción real por omisión.
+  - Si el campo es **obligatorio**, esa opción de placeholder va además `disabled`
+    (no seleccionable como respuesta final) para que sea imposible enviar el
+    formulario dejándola marcada sin que la validación lo detecte.
+  - La variable/modelo enlazado (`wire:model`, `v-model`, `formControl`, estado de
+    React…) se **inicializa en `null`/`''`/`undefined`** — nunca en el id de la primera
+    opción de la lista "porque hay que poner algo". Si el campo representa una edición
+    de un registro existente, se inicializa con el id real de ese registro, no con un
+    valor arbitrario de la lista.
+  - La validación de "campo obligatorio" para un `select` verifica que el valor
+    seleccionado **exista entre las opciones reales** (un id válido), no que el campo
+    tenga *algún* valor truthy — un placeholder mal construido con `value="0"` o
+    `value="-1"` pasaría una validación ingenua de "no vacío" sin ser una selección real.
 - **Mensajes de error por campo obligatorio.** Todo campo requerido, al quedar vacío
   o inválido, muestra un mensaje específico de qué falta o qué formato se espera —
   nunca un mensaje genérico tipo "campo inválido" sin decir cuál ni por qué.
