@@ -51,3 +51,38 @@ por qué no se resolvió en el momento en que se detectó, y qué costaría reso
 - **Fix:** se agregó `hooks/post-commit` (mismo cuerpo compartido `_sync-commands.sh` que los
   demás hooks) y se corrió `scripts/sync-commands.ps1` manualmente para poner al día esta
   máquina. Ver `INSTALL.md`.
+
+## DEUDA-003 — `refresh-agents.ps1` solo soporta subagentes desplegados de Claude Code
+
+- **Estado:** ABIERTA
+- **Detectada:** 2026-09-24 (reportada por el usuario tras el commit `9a52175`: el commando
+  nuevo `/refresh-agents` se agregó solo como `commands/refresh-agents.md`, sin su
+  contraparte `commands/opencode/refresh-agents.md` — la misma clase de deuda de DEUDA-001,
+  pero aquí la causa no es un párrafo de localización: es una capacidad real que falta).
+- **Síntoma:** `scripts/refresh-agents.ps1` solo lee/escribe `.claude/agents/*.md`. opencode
+  tiene su propio mecanismo de subagentes desplegados — `.opencode/agents/*.md` a nivel de
+  proyecto, `~/.config/opencode/agents/` a nivel global (docs: opencode.ai/docs/agents) —
+  con frontmatter distinto (`description`/`mode`/`model`/`permission`/`temperature`, no
+  `name`/`tools` como Claude Code). El script no los detecta, no los refresca y no los
+  reporta como `faltantes`/`huérfanos`: un proyecto que solo despliega agentes opencode
+  corre `/refresh-agents` y recibe `AUSENTE` sin ninguna señal de que hay un mecanismo
+  paralelo sin cubrir.
+- **Por qué no se resolvió ahora:** falta un proyecto real con agentes opencode desplegados
+  contra el cual validar el hash/preservación de frontmatter (el formato de frontmatter de
+  opencode no se verificó contra una instalación real, solo contra la doc pública);
+  implementarlo sin ese fixture de prueba habría sido una suposición sin evidencia de
+  ejecución, contra la política de cero suposiciones.
+- **Mitigación aplicada:** `commands/opencode/refresh-agents.md` ahora existe y declara
+  explícitamente el alcance actual (solo Claude Code) y remite aquí, en vez de dejar la
+  ausencia sin explicar.
+- **Solución propuesta (no implementada):** extender `Refresh-Proyecto` en
+  `scripts/refresh-agents.ps1` para procesar también `.opencode/agents/*.md` del proyecto
+  (y opcionalmente `~/.config/opencode/agents/` con `-All`), con su propia función de
+  preservación de frontmatter (`mode`/`model`/`permission`/`temperature` en vez de
+  `name`/`tools`) y sus propios contadores en el reporte. Validar contra un proyecto real
+  con agentes opencode antes de darlo por resuelto.
+- **Costo de no resolverla:** cualquier proyecto que use opencode como backend de agentes
+  no tiene forma de detectar drift entre sus briefs y sus agentes desplegados salvo a mano.
+- **Costo de resolverla:** diseñar la función de preservación de frontmatter opencode,
+  extender el script y el comando, y conseguir/crear un proyecto con agentes opencode reales
+  para validar antes de cerrar.

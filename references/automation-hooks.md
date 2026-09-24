@@ -204,3 +204,28 @@ automáticos (Documentación, Aprendiz) generan y **proponen**; los cambios que 
 código o políticas siguen pasando por la compuerta humana del orquestador. Un hook
 que auto-aplica cambios sin revisión es justo el antipatrón que esta skill evita
 (ver los guardarraíles en `evidence-protocol.md`).
+
+## Política de proyecto: el upstream de una rama siempre apunta a sí misma en el remoto
+
+Cuando el director (o un agente en modo APLICACIÓN) crea, renombra o rebasa una rama de
+trabajo, el tracking remoto (`git branch -vv`, columna `[origin/X: ...]`) debe nombrar
+**exactamente esa misma rama** en el remoto — nunca `dev`, `main`, ni el nombre anterior
+de la propia rama tras un rename.
+
+**Por qué se rompe fácil:** `git checkout -b <rama> origin/dev` dexa el tracking apuntando
+a `origin/dev` (la rama base), no a la rama nueva; `git branch -m <nuevo-nombre>` (rename)
+conserva el tracking apuntando al nombre viejo de la rama en el remoto. Ninguno de los dos
+casos falla ni avisa — solo se nota corriendo `git branch -vv` explícitamente.
+
+**Verificación obligatoria:** después de cualquier `checkout -b`, `branch -m` o
+`rebase --onto` sobre una rama de trabajo del orquestador, correr `git branch -vv` y
+confirmar que el corchete de tracking coincide con la rama actual. Si no coincide,
+`git push -u origin <rama-actual>` lo corrige en un solo paso (crea o actualiza la rama
+remota y fija el tracking a la vez) — no hace falta un `--unset-upstream` previo salvo que
+se quiera dejar la rama sin tracking momentáneamente para revisión.
+
+**Procedencia:** proyecto un proyecto cliente, 2026-09-16/17 (sesión
+`aprendizaje2`) — dos veces en la misma sesión el tracking quedó apuntando a una rama
+distinta de la actual (una vez tras `checkout -b ... origin/dev`, otra tras un
+`branch -m`); ambas se detectaron con `git branch -vv` y se corrigieron con
+`git push -u origin <rama-actual>`.

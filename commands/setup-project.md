@@ -50,6 +50,17 @@ Si el usuario pasó argumentos, inclúyelos aunque no haya marcadores. Sé conse
 
 Con las capacidades ya elegidas, registra en `.orchestrator/agents.json` qué agente cumple cada rol de la corrida — **arquitecto, aplicación/ejecución y escritura/documentación** — siguiendo `references/setup.md` (Paso 1.5). Por defecto son los subagentes de Claude Code; si hay otro proveedor, se nombran aquí. Ningún rol queda sin asignar antes de arrancar la Fase 1.
 
+## Paso 4.5 — Puntero a políticas de empresa y sincronización de conocimiento previo
+
+Si este es el primer arranque del orquestador en este proyecto (no hay
+`.orchestrator/state.json`, o no tiene marcados estos pasos), ejecuta también los Pasos
+3.8 y 3.9 de `references/setup.md`: proponer el puntero al corpus de
+`company-policies/` en `AGENTS.md`/`CLAUDE.md` (si el corpus existe), y sincronizar el
+conocimiento ya escrito de este proyecto (README, `docs/`, ADRs, reglas de otros agentes)
+hacia la memoria del orquestador con el mismo procedimiento de `commands/learn-from.md`.
+Ambos con la misma compuerta de aprobación que el resto del bootstrap — nunca se escriben
+en silencio.
+
 ## Paso 5 — Reportar
 
 Muestra al usuario:
@@ -57,4 +68,5 @@ Muestra al usuario:
 - Capacidades/plugins activados en el proyecto.
 - Agentes asignados por rol (arquitecto / aplicación / escritura).
 - Capacidades opcionales que NO activaste y por qué (ej. "claude-db disponible si vas a auditar la BD: agrégalo con `/setup-project claude-db`").
+- Si corrió el Paso 4.5: si se anexó el puntero de políticas (o por qué no) y el resumen de la sincronización de conocimiento previo del proyecto.
 - Recordatorio (backend Claude Code): reiniciar Claude Code o ejecutar `/reload-plugins` para que apliquen.

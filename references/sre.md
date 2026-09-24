@@ -85,6 +85,19 @@ a las excepciones capturadas. Señal de búsqueda: cadenas de log con verbos com
 "omitiendo", "skipping", "saltando" en nivel `debug` dentro de pipelines de sync —
 evaluar si la omisión puede ser sintomática de un error de configuración o de datos.
 
+**Herramienta de diagnóstico (Telescope/Debugbar/APM) sin filtro de entorno ni poda
+programada (CR-36).** Un filtro de captura que retorna incondicionalmente `true` (p. ej.
+`Telescope::filter(fn () => true)`) elimina el filtro por entorno del scaffold: cualquier
+instalación con dependencias de desarrollo (staging, una máquina de pruebas, un deploy sin
+`--no-dev`) graba cada request, query, job y log sin límite — depender solo de que el
+paquete esté en `require-dev` no basta. Si además no hay una tarea de poda programada
+(`telescope:prune --hours=N` o equivalente) en el scheduler, la tabla de entradas crece sin
+límite hasta llenar el disco o degradar la BD compartida — más rápido cuanto más volumen de
+queries/jobs genere el proyecto (sincronizaciones batch, por ejemplo). Verificar: (1) el
+filtro de captura de la herramienta de diagnóstico condiciona por entorno
+(`$this->app->environment('local')` o un toggle explícito), no un `true` incondicional; (2)
+existe una tarea de poda programada en el scheduler del proyecto.
+
 ## Modos
 
 - **AUDITORÍA** (solo lectura): informe de huecos de observabilidad por operación crítica,

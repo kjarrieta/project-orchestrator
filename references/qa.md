@@ -204,6 +204,25 @@ Los hallazgos de esta política mapean a la dimensión **Concurrency** y a los `
 cualquiera abierto ⇒ **NO-GO**. Un boundary de concurrencia **UNVERIFIED** bloquea hasta que
 exista el `test_required`; "no hay prueba de carrera" no baja la severidad.
 
+## Checklist mínimo: lectura línea por línea de cada método tocado por el diff
+
+Igual que Convenciones (`conventions-reviewer.md`), añade este paso explícito antes de
+cerrar la verificación de cualquier método tocado por el diff — es la clase de defecto de
+bajo nivel que una auditoría externa (`/code-review`) puede encontrar cuando ningún
+agente del orquestador lo declaró como paso obligatorio:
+
+- **Dead read / hardcode fantasma**: un parámetro leído de la request/input y luego
+  sobreescrito por un literal antes de usarse.
+- **`empty()`/chequeo "truthy" sobre un filtro numérico exacto donde `0` es un valor de
+  negocio válido** (habitaciones, parqueaderos, cualquier id/flag).
+- **Comprobación de estado de dominio contra una columna cruda cuando el framework expone
+  un helper semántico para ese mismo estado.**
+- **La misma lógica de verificación de seguridad implementada de forma independiente en
+  dos controladores/providers distintos.**
+
+Cada uno con evidencia `ruta:línea`; los que tengan patrón detectable por grep son
+candidatos directos a Capa A (`anti-regression.md`).
+
 ## Coordinación
 
 Consumes de Documentación el registro de reglas de negocio y el mapa de comunicación
