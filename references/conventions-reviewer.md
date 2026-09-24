@@ -463,6 +463,70 @@ Cada hallazgo de esta lista lleva evidencia `ruta:línea` como cualquier otro; l
 tengan patrón detectable por grep son candidatos directos a Capa A
 (`anti-regression.md`).
 
+## Auditoría de comentarios (comment drift)
+
+Un comentario desactualizado miente con la misma autoridad que un README, y sobrevive a
+la refactorización que lo invalidó. Los comentarios se auditan como código: se leen, se
+contrastan con lo que hacen las líneas siguientes, y si mienten se corrigen o se
+eliminan. Cuatro subclases con firma detectable:
+
+- **Deprecados**: describen comportamiento que ya no existe. Firma: verbo o dato del
+  comentario que no aparece en las 20 líneas siguientes (nombre de método renombrado,
+  parámetro eliminado, condición que ya no está). Cualquier `// TODO`, `// FIXME`,
+  `// HACK`, `// XXX` con fecha o autor de hace más de 12 meses también entra: si no se
+  hizo, o se convierte en issue trackeable o se borra.
+- **Redundantes**: repiten lo que el identificador ya dice. `// incrementa el contador`
+  sobre `$counter++`, `/** Get the user id */` sobre `getUserId(): int`. Estos son
+  ruido y bajan la señal-a-ruido de los comentarios que sí importan.
+- **Repetitivos**: el mismo bloque de comentario aparece verbatim en múltiples
+  archivos, señal de copy-paste de plantilla que nadie personalizó.
+- **Filtración de información interna al repositorio (defecto de auditoría propia)**:
+  cualquier comentario que apunte a información fuera del código versionado o interna
+  de proceso. Firma detectable:
+  - Referencias a documentos no versionados: URLs internas (Confluence, Notion,
+    Google Docs, SharePoint), rutas locales (`C:\Users\`, `/home/<usuario>/`), IDs
+    de documento efímeros.
+  - Consecutivos de auditorías/errores internos: `// CN-014`, `// AUDIT-2026-Q3-...`,
+    `// ticket #4521`, `// caso soporte 88291`. El código no es la memoria de la
+    auditoría; la memoria vive en `learner.md`/`anti-regression.md` con su patrón.
+  - IDs de tickets sin proyecto declarado (`// JIRA-4521` es aceptable si el proyecto
+    documenta que JIRA es el tracker; `// #4521` sin contexto no lo es).
+  - Nombres de personas (`// pedido por Juan`, `// según María del área X`) —
+    trazabilidad organizacional que se vuelve ruido cuando la persona se va y no
+    documenta la decisión.
+  - Fragmentos que parecen credenciales o endpoints internos, aunque estén "solo de
+    ejemplo": `// token de prueba: sk_test_abc...`, `// endpoint interno: https://qa.intra.corp/...`.
+
+Cada hallazgo se emite como `[OBSERVADO]` con `ruta:línea`, la clase de drift y la
+corrección propuesta (reescribir, eliminar, mover a memoria/ticket externo). Las firmas
+detectables por grep (consecutivos de auditoría, rutas locales, credenciales aparentes)
+son candidatas directas a Capa A.
+
+## Encarpetado congruente
+
+La estructura de carpetas es la primera capa de arquitectura visible. Un archivo en la
+carpeta equivocada empuja al siguiente a acompañarlo y en dos releases la arquitectura
+declarada dejó de coincidir con el mapa físico. Verificar en cada corrida no trivial:
+
+- **Coincidencia carpeta ↔ capa declarada**. Un `UserService` que vive en
+  `app/Http/Controllers/` es un defecto estructural aunque el código funcione:
+  contradice la convención elegida (`architect.md`). El grep se arma a partir de la
+  convención registrada en `.orchestrator/`; sin convención declarada, se detecta el
+  patrón dominante y se marcan los outliers.
+- **Namespace ↔ ruta física**. En stacks con PSR-4 / módulos, un archivo cuyo
+  namespace declarado no coincide con su ruta física es defecto (romperá autoload en
+  producción tras un rename case-sensitive).
+- **Tests espejo del código**. Si el proyecto declara mirroring
+  (`tests/Unit/Foo/BarTest.php` ↔ `app/Foo/Bar.php`), verificar que los tests
+  añadidos por el diff respeten el espejo; un test suelto en la raíz de `tests/`
+  siempre se pierde.
+- **No mezcla de dominios en una carpeta técnica**. Una carpeta `app/Services/` con
+  50 servicios de 12 dominios distintos es indicio de que la organización debería ser
+  por dominio (`app/Reservas/Services/`), no por tipo técnico. No es un defecto que
+  detenga el gate por sí solo; es una `[RECOMENDACIÓN]` para el arquitecto.
+
+Cada desviación se emite con `ruta:línea` y la carpeta esperada según la convención.
+
 ## Coordinación
 
 Con el Arquitecto (solapa en SOLID/límites: tú aportas la lente idiomática del stack, él

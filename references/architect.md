@@ -11,6 +11,12 @@ realmente usa. Lee siempre `evidence-protocol.md` antes de empezar.
   infraestructura, presentación).
 - **Clean code**: nombres reveladores, funciones pequeñas y con un solo motivo de
   cambio, ausencia de duplicación, efectos secundarios controlados.
+- **Comentarios acotados**: se permiten, pero solo para el porqué no obvio (una
+  restricción oculta, un workaround puntual, un invariante que sorprendería al
+  lector) — nunca para explicar el qué, que ya dicen los nombres. Cortos y
+  concisos: una línea, no bloques. Todo comentario que quede desactualizado tras
+  un cambio se corrige o se borra en el mismo cambio — un comentario obsoleto es
+  peor que ninguno.
 - **Límites explícitos**: cada módulo/servicio tiene una frontera y un contrato
   claros; las dependencias apuntan hacia el dominio, no al revés.
 - **Escalabilidad y resiliencia**: idempotencia donde toca, statelessness en los
@@ -144,6 +150,48 @@ Sugerencia por defecto para Laravel/Eloquent —**ofrécela, no la exijas**—: 
 `Controller/Livewire → Service → Repository → Model` (Service como único punto de entrada
 a datos, Repository como único que toca el ORM). Su detalle, beneficios y guardarraíl
 están en la memoria `php/architecture.md` como **patrón recomendado, no obligatorio**.
+
+## Integración de capas y fronteras arquitectónicas
+
+Una capa violada no se ve en el diff pequeño: aparece en la auditoría cuando la
+inversión de dependencia ya se replicó tres veces. Auditar en cada corrida no trivial:
+
+- **Sentido de las dependencias.** Domain no importa Infrastructure. Model no importa
+  Controller. Repository no importa Service. Si el proyecto declaró convención
+  (`.orchestrator/`), los sentidos prohibidos son datos, no interpretación —
+  cualquiera de ellos se emite como `[OBSERVADO]` con `ruta:línea` de la línea `use`
+  / `import` que rompe la frontera.
+- **Puntos de entrada respetados.** Si la convención es que Service es el único punto
+  de entrada a datos y Repository el único que toca el ORM, un Controller/Livewire
+  que instancia `Model::query()` directamente es una fuga de capa —promueve a Capa A
+  si tiene firma estática (grep de `Model::` en `app/Http/Controllers/**`).
+- **Contratos entre capas.** DTOs cruzando fronteras, no entidades del ORM. Un array
+  crudo entre Service y Controller se acepta si el proyecto no ha adoptado DTOs; una
+  entidad Eloquent que emerge en un endpoint público es defecto (fuga del ORM al
+  contrato de API).
+
+## Dependencias circulares
+
+Los ciclos de import/require son bombas de tiempo: en tiempo de arranque explotan
+como `Class X not found` intermitente, en runtime como recursión infinita silenciosa
+si el ciclo es lazy. Verificar:
+
+- **Ciclos de módulo/namespace.** `A` importa `B` que importa `C` que importa `A`.
+  En proyectos con autoload PSR-4/ES modules, la detección se hace mapeando cada
+  archivo a su set de `use`/`import` y buscando ciclos en el grafo. Herramientas
+  disponibles (usar la nativa del stack si existe): `deptrac` en PHP, `madge` en
+  JavaScript/TypeScript, `pydeps` en Python, `dep tree` en Go.
+- **Ciclos entre servicios/módulos de dominio.** `Reservas` depende de `Cobros` que
+  depende de `Reservas`. Suele ser síntoma de que un tercer dominio (`Facturación`,
+  `Cliente`) debería absorber la lógica compartida. Se emite como
+  `[RECOMENDACIÓN]` con la propuesta de refactor.
+- **Ciclos por eventos/inyección de dependencia.** No se detectan por grep del
+  código estático; requieren leer la configuración del contenedor DI y el registro
+  de listeners. Falso negativo típico: `EventA` dispara `ListenerB` que emite
+  `EventC` que dispara `ListenerA`. Cuando el stack lo permita, se pide al
+  contenedor el grafo compilado y se recorre.
+
+Cada ciclo se emite con la cadena completa de archivos/símbolos que lo forma.
 
 ## Coordinación
 
