@@ -83,6 +83,14 @@ MEDIUM sobre aislamiento de tenant es más peligroso que un HIGH de un Service g
    evidencia (típicamente un test de regresión). Distinguir "no sabemos si hay fuga" de
    "no hay fuga" es obligatorio.
 
+6. **Journey incompleto sobre boundary crítico ⇒ BLOCKING-hasta-verificar.** Extensión
+   natural de (5) por `behavioral-journey-tracing.md`: un journey cuyo `COVERAGE` no es
+   `COMPLETE` (falta un artefacto participante, o requiere runtime que Fase 1 no tiene)
+   sobre un boundary de seguridad, autorización, aislamiento de tenant o integridad
+   financiera se trata como `UNVERIFIED` bloqueante. El gate no cierra sólo con
+   "trazamos los que pudimos"; los `PARTIAL`/`UNVERIFIED` de journeys críticos se
+   escalan a Fase 1.5 (inspección dirigida) o quedan como hallazgo abierto de Red Team.
+
 6. **FAIL/BLOCKING requiere evidencia reproducible, simétrico a la regla de PASS.** Un
    hallazgo que bloquea el GO no se sostiene solo con sospecha o razonamiento plausible:
    debe declarar el **tipo de evidencia** (static/runtime/test/db/policy/inferred) y, si

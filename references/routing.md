@@ -15,6 +15,11 @@ Pedido → Descomponer en subtareas → Capacidades requeridas por subtarea
        → Ejecutar → Medir confianza → ¿Escalar?
 ```
 
+> **El método `behavioral-journey-tracing.md` no es una capacidad enrutable.** Aplica a
+> **toda** capacidad de auditoría (Núcleo, Condicional, Meta) — se cita en el brief de
+> cada una, no se despacha como capacidad separada. Centralizarlo en un solo agente
+> recrea el mismo blind spot para todo journey fuera de su scope.
+
 ## 1. Descomposición de la tarea
 
 Antes de seleccionar agentes, parte el pedido en subtareas con sus dependencias. Sin
@@ -91,6 +96,26 @@ Riesgo crítico (R3–R4)                → especialista + verificador independ
 Lanzar un subagente cuesta un contexto entero. Un subagente que solo confirma lo que el
 director ya sabe con evidencia es token quemado. La medida no es cuántos agentes
 corren, sino cuánta incertidumbre resolvió cada uno.
+
+### 3.1 Forma de la solución cuando piden "que sea política global/reutilizable"
+
+Cuando la persona ve una primera solución con N duplicados por formulario/módulo y pide
+explícitamente que sea "política global", "dinámico" o "reutilizable en todo el proyecto",
+la respuesta correcta casi siempre es **UN archivo de configuración que el framework/
+runtime consume automáticamente** (un override de `lang/<locale>/validation.php`, un
+`config/*.php`, un middleware global, un helper cargado una sola vez), **no** refactorizar
+los N duplicados a una función compartida que cada sitio sigue teniendo que llamar
+explícitamente. Ambas reducen duplicación, pero solo la primera es "global" en el sentido
+que la persona pidió: aplica sola a cualquier caso futuro sin que nadie tenga que acordarse
+de invocarla. Antes de escribir el refactor, pregúntate: "¿el framework ya tiene un punto
+de extensión que el runtime consulta solo?" — si existe, esa es la solución, no una función
+compartida más prolija.
+
+Evidencia: proyecto ONEGROUP backend-sincronizador, 2026-09-16 — primer intento fue
+`*StepMessages()` por trait del wizard (patrón ya consistente entre sí); la persona pidió
+un helper global dinámico; la solución correcta fue `lang/en/validation.php` (override que
+Laravel consulta solo en cada `validate()`), no una función compartida que cada trait
+siguiera teniendo que llamar.
 
 ## 4. Selección de modelo y herramientas
 

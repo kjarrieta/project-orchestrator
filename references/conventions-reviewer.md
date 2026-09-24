@@ -5,7 +5,17 @@ arquitectura puede ser "teóricamente limpia" y a la vez ser **mala arquitectura
 stack**: pelea contra el framework, ignora sus mecanismos idiomáticos, o inventa capas
 que nadie sostiene. Tú auditas que el código respete la convención de capas del proyecto
 y los idioms del framework — sin caer en la trampa opuesta, el over-engineering. Lee
-`evidence-protocol.md` antes de empezar. Sé conciso.
+`evidence-protocol.md` antes de empezar. Sé conciso. Aplica el método
+`behavioral-journey-tracing.md` — obligatorio (patrón frecuente en este dominio: **I**
+sibling consistency — repositorios, controladores o utilidades hermanas que resuelven
+el mismo problema con reglas distintas y quedan divergentes).
+
+> **Casi todos los ejemplos "aprendidos en campo" de este brief (FQN inline vs
+> imports, cache-key inline vs helper, métodos en clase vs `Concerns` hermano, idioma
+> de docblocks) son instancias del patrón I aplicado a la convención de código.**
+> Definición canónica en `behavioral-journey-tracing.md`; la señal grep barata "comparar
+> el mismo tipo de artefacto entre dos ramas espejo" es la aplicación cotidiana del
+> patrón.
 
 > Agnóstico de stack: aplica la convención **detectada y registrada** en
 > `.orchestrator/conventions.md` (Paso 3.6 de `setup.md`). El caso primario es Laravel
@@ -210,6 +220,22 @@ esa versión.
   ningún test lo note porque cada una tiene su propia cobertura. Evidencia: `code-review`
   2026-09-15 — `AuthController::login()` y `FortifyServiceProvider::configureAuthentication()`
   reimplementaban por separado `User::where('email', ...)->first()` + `Hash::check(...)`.
+- **Un campo removido de un formulario/wizard multi-paso, verificado en un solo lugar.**
+  Cuando el pedido es "quitar el campo X del paso Y", el error de alcance clásico es
+  borrar solo el input del Blade/JSX. En un wizard con estado por paso (trait/concern por
+  paso, cálculo de % de completado, y una validación de "guardado final" separada de la
+  del formulario), el campo puede seguir vivo en hasta 4 puntos: (1) el input visual, (2)
+  las propiedades/reglas/mapeo del paso que lo persiste, (3) cualquier cálculo derivado
+  que lo cuente (% de completado, resumen, checklist), y (4) la validación de guardado
+  final del Service/Controller que agrupa todos los pasos — el más fácil de olvidar
+  porque no vive en el mismo archivo que el formulario, y su síntoma (la acción final
+  queda bloqueada exigiendo un campo que ya no existe en la UI) no señala directamente al
+  campo eliminado. Verificar los 4 puntos con un grep del nombre de la propiedad/columna
+  en todo el módulo antes de dar el cambio por completo. Evidencia: proyecto ONEGROUP
+  backend-sincronizador, módulo Arrendamiento, 2026-09-16 — remover "valor predial"/
+  "avalúo catastral" del paso de precio exigió tocar el Blade, el trait del paso, el
+  cálculo de % de completado y `validateFinalRequirements()`; sin este último, ningún
+  inmueble habría podido publicarse nunca (el campo quedaba exigido pero invisible).
 
 ## Auditoría de código muerto (dead code)
 
@@ -305,6 +331,32 @@ arriba: extraer una abstracción que no resuelve un problema concreto es el erro
   misma regla con variables distintas, dos validaciones equivalentes escritas por separado,
   un mapeo de campos repetido entre un `Command` y un `Job`/`Listener`. Señal: bloques con
   la misma secuencia de condiciones/transformaciones en archivos distintos.
+
+  **Caso particular: la regla existe centralizada, pero un segundo flujo la reimplementa
+  a mano en vez de reusarla — y los dos flujos divergen para el mismo comportamiento
+  esperado (recurrencia confirmada, ver también más abajo la variante de reglas de
+  seguridad).** No hace falta que el segundo flujo tenga una firma textual parecida para
+  que sea el mismo defecto: basta con que ambos deban cumplir la misma regla de negocio y
+  cada uno la resuelva por su cuenta. Dos evidencias reales del mismo proyecto en la misma
+  auditoría:
+  - `CaseService::updateContainer()` geocodifica leyendo la dirección **ya persistida**
+    (`resolveCoordinatesForNode()` corre antes de abrir la transacción, con
+    `mainForNode()`), mientras que la escritura de la nomenclatura **nueva** ocurre
+    después, dentro de la transacción (`upsertMain()`) — el "punto único" que debería
+    decidir con qué dirección se geocodifica no existe: cada mitad del método lee su
+    propia versión del dato.
+  - `NodeController` valida `unit_number` con `required|string|max:20` mientras el alta
+    (`StoreNodeRequest`, `NodeValidator` y dos formularios web) aplica
+    `FieldFormatRules::unitNumber()` (`max:60` + patrón). El helper centralizado existe;
+    el endpoint nuevo simplemente no lo usa.
+
+  Verificar: cuando el proyecto tenga un helper/servicio ya designado para una regla
+  (`FieldFormatRules`, un `*Rules`/`*Policy`/servicio de normalización), todo punto nuevo
+  que deba cumplir esa misma regla — otro endpoint, otro flujo de escritura, otra rama de
+  edición — debe invocarlo, no reimplementarla ni leer el dato por una vía distinta a la
+  que usa el flujo que sí es correcto. Clasifica MEDIUM por defecto; sube a HIGH/CRÍTICO
+  si la regla divergente es de autorización, dinero o integridad de datos (coordina con
+  Seguridad/Arquitecto de Desarrollo).
 - **Constantes/arrays/listas literales repetidas** (ya cubierto arriba en "Checks de
   convenciones específicas" — trátalo como caso particular de este chequeo, no aparte).
 - **Funciones casi-idénticas** (`copy-paste con una variable cambiada`) que deberían
@@ -383,6 +435,33 @@ distintos, copiar una encima de la otra destruye el port.
 - **APLICACIÓN**: refactoriza solo lo aprobado, con propósito y evidencia — nunca por
   estética (regla de `evidence-protocol.md`). Mover/renombrar/dividir solo si resuelve un
   problema trazable.
+
+## Checklist mínimo: lectura línea por línea de cada método tocado por el diff
+
+Convenciones, QA, Seguridad y Robustez cubren cada uno su eje, pero ninguno declara
+explícitamente "leer cada método línea por línea buscando esta familia concreta de
+olvidos" — por eso una auditoría externa (`/code-review`) puede encontrar defectos de
+bajo nivel que el equipo del orquestador no señaló en corridas anteriores del mismo
+proyecto. Añade este paso explícito antes de cerrar la revisión de cualquier método
+tocado por el diff:
+
+- **Dead read / hardcode fantasma**: un parámetro leído de la request/input y luego
+  sobreescrito por un literal antes de usarse — el parámetro aparenta controlar el
+  comportamiento pero no lo hace.
+- **`empty()`/chequeo "truthy" sobre un filtro numérico exacto donde `0` es un valor de
+  negocio válido** (habitaciones, parqueaderos, cualquier id/flag): descarta el cero como
+  si el filtro no hubiera llegado. Ver `memory/global/practices.md` y `memory/php/api.md`.
+- **Comprobación de estado de dominio contra una columna cruda cuando el framework expone
+  un helper semántico para ese mismo estado** (p. ej. leer `two_factor_confirmed_at`
+  directamente en vez de `hasEnabledTwoFactorAuthentication()` de Fortify): el helper
+  puede respetar configuración adicional que la columna cruda ignora.
+- **La misma lógica de verificación de seguridad (credenciales, permisos, gates)
+  implementada de forma independiente en dos controladores/providers distintos**: una
+  corrección aplicada a una copia y no a la otra dobla la exposición.
+
+Cada hallazgo de esta lista lleva evidencia `ruta:línea` como cualquier otro; los que
+tengan patrón detectable por grep son candidatos directos a Capa A
+(`anti-regression.md`).
 
 ## Coordinación
 

@@ -5,6 +5,11 @@ Dos invariantes de una misma familia. Los dos nacen del mismo hueco que
 al código del proyecto sino a **los artefactos que describen el sistema**: comandos,
 documentación, instaladores, paquetes distribuibles, snapshots de memoria.
 
+> Este archivo es la aplicación del **patrón E (Read-after-write continuity)** de
+> `behavioral-journey-tracing.md` a los artefactos declarativos, no al código de
+> ejecución. La pregunta es la misma —"¿quién consume el dato que acabamos de
+> modificar?"— aplicada a comandos, docs y paquetes en vez de a campos y endpoints.
+
 El patrón es siempre el mismo y siempre pasa en silencio:
 
 - Un artefacto existe en **más de una copia**. Alguien mejora una. Las otras se quedan

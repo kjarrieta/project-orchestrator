@@ -8,7 +8,19 @@ argument-hint: "<ruta del documento o carpeta> [--dominio <dominio>]"
 Carga documentación normativa entregada por la empresa al **corpus de políticas** que el
 agente de Cumplimiento Corporativo consulta en la Fase 6. Lee primero
 `~/.claude/skills/project-orchestrator/references/policy-compliance.md`: define el esquema
-de entrada, los niveles de exigencia y cómo se usa cada campo.
+de entrada, los niveles de exigencia y cómo se usa cada campo. Lee también
+`references/behavioral-journey-tracing.md` (los 10 patrones A–J).
+
+> **Clasificar cada política ingerida contra A–J.** Toda entrada normativa que este
+> comando persista en `memory/company-policies/*.md` lleva un campo `pattern:
+> A|B|C|D|E|F|G|H|I|J|—`. Cuando la norma corporativa cubre una clase de defecto que ya
+> tiene patrón (típico: normas de trazabilidad → E; de segregación de funciones → F;
+> de idempotencia → G; de máquinas de estado regulatorias → H), enlázalo — el auditor
+> que aplique el patrón en Fase 1 ve automáticamente la exigencia normativa
+> correspondiente y el veredicto se cruza con Cumplimiento sin re-derivar el mapeo. Si
+> la norma cubre algo genuinamente nuevo, `pattern: —` y se propone patrón K/L/… al
+> aprendiz (nunca lo crees desde aquí: el protocolo se toca por compuerta humana). Esto
+> vale para toda ingesta, incluida la primera del corpus.
 
 Argumento (ruta del documento, carpeta, o `revisar` para auditar el corpus sin cargar
 nada): $ARGUMENTS

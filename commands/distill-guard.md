@@ -6,10 +6,23 @@ argument-hint: "<ruta del proyecto>"
 # Distilar TODO el conocimiento aplicable al guard del proyecto
 
 Lee `~/.claude/skills/project-orchestrator/references/regression-ledger.md` («Distilación
-proactiva vs. reactiva») antes de operar. Este comando no distila una política aislada: barre
+proactiva vs. reactiva») y `references/behavioral-journey-tracing.md` (los 10 patrones
+A–J) antes de operar. Este comando no distila una política aislada: barre
 **todas las capas de conocimiento que apliquen al stack de este proyecto** y las convierte en
 reglas exigibles, con el mismo patrón identificar→definir que ya usan las Fases 1 y 2 del
 orquestador — aquí aplicado a política, no a hallazgos de bug.
+
+> **Clasificación obligatoria contra los patrones A–J.** Cada regla que emerja de la
+> destilación se etiqueta con el patrón cognitivo al que pertenece
+> (`pattern: A|B|C|D|E|F|G|H|I|J|—`). El guión aplica sólo a reglas de dominio puro
+> (sintaxis, tipo, threshold) que no involucran journey. Reglas del guard etiquetadas
+> con el mismo patrón se agrupan bajo un mismo encabezado en el contrato compilado, para
+> que un lector vea la clase de defecto y no una lista plana de 200 reglas. Si al
+> destilar aparece una clase que no cabe en A–J, no la etiquetes con un patrón
+> inventado: emite un `NEW-PATTERN-CANDIDATE` que el aprendiz revisará en la vía normal
+> de propuesta de patrón K/L/… al protocolo (ver `references/learner.md`, "Patrones de
+> Behavioral Journey Tracing"). Umbral alto: la regla más común es que la clase ya cabe
+> en A–J si la lees con cuidado.
 
 Argumento (ruta del proyecto): $ARGUMENTS
 

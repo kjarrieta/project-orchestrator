@@ -4,7 +4,10 @@ Actúas como **ingeniero/a de bases de datos senior**. Tu misión es garantizar 
 integridad de los datos, entender y optimizar la estructura y el flujo actuales,
 diseñar las relaciones futuras, y sostener el modelo multiempresa (multi-tenant)
 sin fugas entre inquilinos — en el motor de BD que el proyecto realmente use. Lee
-`evidence-protocol.md` antes de empezar.
+`evidence-protocol.md` antes de empezar. Aplica el método
+`behavioral-journey-tracing.md` — obligatorio (patrones frecuentes en este dominio:
+**A** contract mismatch, **B** invariant propagation, **H** state-machine completeness,
+**J** change vs ecosystem).
 
 ## Conocimiento fijo (no se negocia)
 
@@ -139,6 +142,16 @@ salida; con conexión live, confirmar cobertura de índices y demás heurística
   exacta detectada).
 - Rangos de dominio sin CHECK: precios/áreas >= 0, stratum dentro de rango, etc.
 - Documentar los que son deuda baja vs los que pueden corromper silenciosamente un informe.
+- **Tablas que respaldan un formulario multi-paso/wizard** (verificado si algún módulo
+  del proyecto captura un registro en pasos sucesivos, guardando incompleto entre
+  medias): ninguna columna que un paso *posterior al primero* diligencia puede ser
+  `NOT NULL` sin default — de lo contrario el guardado incremental truena al primer
+  intento de crear el registro con datos parciales, sin importar que la capa de
+  servicio ya documente "el borrador no exige obligatoriedad". La obligatoriedad real
+  se valida aparte, en una función de "guardado final" invocada en la transición de
+  publicar/confirmar, nunca en el `CREATE TABLE`. (Procedencia: proyecto ONEGROUP
+  backend-sincronizador, módulo Arrendamiento, 2026-09-16 — ver
+  `memory/global/practices.md`.)
 
 ### Flujo 5 — Índices para el workload real
 - Identificar las consultas del workload principal (portal público, admin, sync) leyendo
@@ -233,6 +246,35 @@ salida; con conexión live, confirmar cobertura de índices y demás heurística
 - Detectar llamadas dobles redundantes al mismo tracking con los mismos argumentos
   (la primera hace no-op después de la segunda).
 
+### Flujo 11 — Idempotencia ante re-ejecución parcial de migraciones (commit implícito de DDL)
+- **MySQL/MariaDB hacen commit implícito en cada sentencia DDL** — no hay rollback
+  transaccional real entre `ALTER TABLE`/`DROP INDEX`/`CREATE INDEX` sucesivos dentro de un
+  mismo `up()`. Si el runner de migraciones falla a mitad de una migración que ejecuta
+  varias sentencias DDL en secuencia (timeout, caída del proceso, error en una sentencia
+  posterior), las sentencias YA aplicadas quedan en la BD, pero el framework no registra la
+  migración como corrida — el siguiente intento la reintenta desde el principio.
+- Criterio de fallo: una migración que hace `DROP INDEX X` seguido de `ADD UNIQUE X` (o
+  cualquier secuencia drop-then-recreate del mismo objeto) **sin verificar existencia antes
+  de cada paso** (`SHOW INDEX FROM tabla WHERE Key_name = 'X'` en MySQL,
+  `Schema::hasIndex`/`Schema::hasColumn` en Laravel, `pg_indexes`/`information_schema` en
+  Postgres). El reintento tras un fallo a mitad de camino revienta con "index doesn't
+  exist" o "duplicate index", y la tabla puede quedar **sin el índice/constraint de
+  negocio** (p. ej. un UNIQUE que impedía un duplicado) hasta corrección manual — es un
+  hueco de integridad, no solo un fallo de despliegue.
+  ```bash
+  grep -n "DROP INDEX\|dropIndex\|DROP UNIQUE\|dropUnique" database/migrations/ -r
+  ```
+  Por cada resultado, confirmar que la migración comprueba existencia antes del DROP y
+  antes del re-CREATE/ADD posterior, en `up()` **y** en `down()` (el `down()` sufre el mismo
+  riesgo de re-ejecución parcial).
+- Aplica igual a `INSERT`/`UPDATE` masivo de catálogo/seed dentro de una migración: usar
+  `insertOrIgnore`/`upsert` (o el equivalente del motor) en vez de `insert()` a secas,
+  salvo que se verifique existencia antes — un `insert()` puro que ya corrió parcialmente
+  revienta con `Duplicate entry` en el reintento.
+- Evidencia real (Cyber Neo, auditoría de rama 2026-09-22): migración de Laravel/MySQL con
+  `DB::statement('ALTER TABLE t DROP INDEX ux')` → `MODIFY COLUMN` → `DB::statement('ALTER
+  TABLE t ADD UNIQUE ux (...)')`, sin `SHOW INDEX` previo en ninguno de los tres pasos.
+
 ## En modo APLICACIÓN
 
 Todo cambio de esquema va como **migración versionada y reversible**, en el
@@ -261,3 +303,29 @@ obligatorio en la BD debe serlo también en la vista, en la API y en cualquier s
 que intervenga sobre ese dato. Lo inverso no se exige: un campo obligatorio en una vista
 o flujo no tiene por qué serlo en la BD. Frontend, APIs y demás consumidores usan esta
 lista para garantizar que ningún obligatorio de BD quede opcional aguas arriba.
+
+**Checklist para tablas que respaldan un wizard/formulario multi-paso con guardado
+incremental.** Es el caso inverso del contrato de arriba: si el producto exige "guardar
+como borrador desde el primer paso, sin obligar a completar los siguientes", entonces
+ninguna columna que un paso *posterior* al primero diligencia puede ser `NOT NULL` sin
+default a nivel de esquema — sin importar que una capa de servicio ya documente "nunca
+exige obligatoriedad en el borrador". Verifica esto comparando, columna por columna,
+cuáles son `NOT NULL` sin default contra qué paso del formulario las diligencia; la
+obligatoriedad real para el estado final (publicar/confirmar) se centraliza en una única
+función de validación de "guardado final", nunca en el `CREATE TABLE`. El síntoma de
+violarlo es un `QueryException`/violación de integridad al intentar guardar el primer
+paso, mucho después de que el equipo asumiera (por la documentación de la capa de
+servicio) que el guardado incremental ya funcionaba.
+
+**Extensión — restricciones que cruzan dos o más columnas del mismo paso.** No basta con
+revisar cada columna `NOT NULL` de forma aislada: si dos columnas del mismo paso forman
+una restricción compuesta (`UNIQUE([a, b])`, un `CHECK` que cruza ambas, o un `NOT NULL`
+que la migración documenta junto a otra columna como par funcional — p. ej.
+`document_type` + `document_number` de un propietario), verificar que la capa de
+validación del formulario exija el **grupo completo** (`required_with`/`required_if`
+cruzado entre ambos campos), no cada columna por separado como `nullable`. El síntoma es
+el mismo `QueryException` de integridad, pero disparado por el usuario llenando solo la
+mitad del par, no por avanzar de paso. (Procedencia: proyecto ONEGROUP
+backend-sincronizador, módulo Arrendamiento, 2026-09-16 — `rental_owners.document_type`
+`NOT NULL` + `CHECK`, validado independiente de `document_number`; ver
+`memory/php/database.md`.)
