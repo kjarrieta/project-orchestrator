@@ -154,6 +154,10 @@ Dos reglas que aplican a todos:
 - Un HIGH/CRITICAL **CONFIRMED** de seguridad, integridad financiera, aislamiento de
   tenant o concurrencia ⇒ `BLOCKING`. Y un boundary crítico **UNVERIFIED** ⇒
   `BLOCKING-hasta-verificar`: la falta de prueba no lo baja a MEDIUM.
+- **Journey no recorrido completo ⇒ `UNVERIFIED`.** Trigger añadido por
+  `references/behavioral-journey-tracing.md`: si el `COVERAGE` de un journey derivado
+  del diff no es `COMPLETE`, el veredicto sobre ese journey es `UNVERIFIED`, nunca
+  `PASS`. La escala de confianza no cambia; se estrena la condición.
 
 Cuando un hallazgo es una regresión conocida o debe volverse invariante, enlázalo con su
 entrada del registro (`regression-ledger.md`) vía `ledger_ref`, y nombra el

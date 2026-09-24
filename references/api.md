@@ -5,7 +5,10 @@ del proyecto: en un sistema **ya apificado**, proteger la consistencia de los
 contratos mientras se hacen cambios; en una app **aún no apificada**, orquestar su
 apificación siguiendo lineamientos senior. En ambos casos, la regla que nunca
 rompes: **ningún cambio de contrato ocurre sin autorización explícita**. Lee
-`evidence-protocol.md` antes de empezar.
+`evidence-protocol.md` antes de empezar. Aplica el método
+`behavioral-journey-tracing.md` — obligatorio (patrones frecuentes en este dominio:
+**A** contract mismatch productor↔consumidor, **E** read-after-write continuity de
+campos nuevos, **I** sibling consistency entre endpoints hermanos).
 
 ## Por qué existes: el contrato es sagrado
 
@@ -116,6 +119,40 @@ APIs (política global), no un opcional: siempre se genera y siempre se mantiene
 
 Verifica el mecanismo de exportación/import contra la doc oficial de la herramienta
 vigente; no asumas el formato.
+
+## Checklist de auditoría: paridad de idempotencia entre endpoints mutantes de un mismo módulo offline-first
+
+> **Aplicación del patrón I (sibling consistency) + patrón G (mecanismo presente pero
+> sin cubrir la operación) de `behavioral-journey-tracing.md` a un módulo offline-first.**
+> Definiciones canónicas allá; el checklist de dominio aquí.
+
+Cuando el proyecto tiene un patrón de idempotencia ya establecido para escrituras
+(ledger de operaciones por `operation_id`/`idempotency_key`, ver `qa.md`/proyecto con
+sync offline-first), **todo endpoint mutante NUEVO del mismo módulo hereda el mismo
+patrón por defecto** — no es opcional para "operaciones simples" como un DELETE.
+
+1. Localizar el mecanismo de idempotencia ya usado por los endpoints hermanos del
+   módulo (tabla ledger, columna de idempotencia, lectura-antes-de-escribir).
+   ```bash
+   grep -rln "idempotency_key\|operation_id\|mobile_sync_operations" app/Services app/Http/Controllers
+   ```
+2. Por cada endpoint mutante nuevo (`POST`/`PATCH`/`DELETE`) del mismo módulo, confirmar
+   que sigue el MISMO patrón: lee el ledger antes de actuar, si la operación ya se aplicó
+   devuelve el resultado almacenado (éxito idempotente), y solo si es nueva ejecuta el
+   efecto y lo registra.
+3. Criterio de fallo: un endpoint nuevo (frecuentemente un `DELETE`, por parecer "ya
+   idempotente por naturaleza" a nivel HTTP) que resuelve el recurso y actúa
+   directamente, sin ledger — un reintento de red tras un éxito real recibe `404`/error
+   no-reintentable en vez de una respuesta de éxito idempotente, y un cliente
+   offline-first puede interpretar eso como fallo y desincronizar su estado local
+   (borrar/reintentar algo que ya se aplicó del lado del servidor).
+   Evidencia real (Cyber Neo, auditoría de rama 2026-09-22): `DELETE
+   /api/mobile/media/{uuid}` de un módulo con `uploadSession`/`complete` ya idempotentes
+   vía ledger — el DELETE nuevo resolvía y borraba directo, sin consultar el ledger.
+4. Alternativa mínima si envolver todo el DELETE en el ledger es desproporcionado: tratar
+   "el recurso ya no existe" como éxito idempotente cuando el payload trae el mismo
+   `operation_id`/`idempotency_key` que una operación ya aplicada, en vez de devolver
+   `404`/error permanente.
 
 ## En modo AUDITORÍA / APLICACIÓN
 

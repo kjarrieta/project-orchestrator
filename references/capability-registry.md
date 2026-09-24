@@ -10,6 +10,16 @@ roster puede crecer sin que la lógica de orquestación cambie.
 > agentes** del equipo. Un agente puede, además, delegar en una capacidad del entorno
 > (p. ej. BD delega en el plugin `claude-db`).
 
+> **Método obligatorio de auditoría — Behavioral Journey Tracing.** Toda capacidad de
+> auditoría (Núcleo, Condicional o Meta) aplica el método definido en
+> `references/behavioral-journey-tracing.md` cuando corre en Fase 1: derivar el conjunto
+> de journeys del diff, trazarlos por sus boundaries y emitir `JOURNEYS TRACED` +
+> `COVERAGE` como parte de su evidencia. **No es una capacidad separada.** Un journey no
+> recorrido completo ⇒ `UNVERIFIED` (no `PASS`) — trigger nuevo sobre la escala de
+> confianza ya establecida en `evidence-protocol.md`. La biblioteca de patrones
+> históricos que justifican el método vive en `references/cross-layer-seams.md`
+> (evidencia, no ejecución).
+
 ## Por qué capacidades y no "N agentes"
 
 No debe importar cuántos agentes existen en el catálogo. Debe importar qué capacidades

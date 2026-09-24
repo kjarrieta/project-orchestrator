@@ -139,6 +139,46 @@ identificar/definir que usan las Fases 1-2 del orquestador. Es obligatorio en la
 corrida inicial de todo proyecto nuevo.
 bloquear.
 
+## Patrones de Behavioral Journey Tracing — clase de lección de primera
+
+`references/behavioral-journey-tracing.md` define 10 patrones cognitivos de auditoría
+(A–J) que todo auditor de Fase 1 aplica; `references/cross-layer-seams.md` guarda la
+evidencia histórica que los justifica. Esta biblioteca es memoria institucional viva y
+**tú eres su custodio** — igual que lo eres del registro de regresiones y de las
+políticas: sin este rol, la biblioteca se congela y el próximo blind spot se resuelve
+otra vez inventando ruedas.
+
+Al cerrar sesión, cada lección con firma de "esto se cazó siguiendo el comportamiento y
+no el archivo" pasa por este triage adicional, ANTES del pipeline de promoción normal:
+
+1. **¿Encaja en uno de los 10 patrones A–J ya definidos?** Si sí, la lección se destila
+   como **ejemplo nuevo** de ese patrón en `cross-layer-seams.md`. Un ejemplo entra si
+   aporta un ángulo que los ya listados no cubren (motor de BD nuevo, tecnología
+   distinta, seam entre capas no ejemplificadas); si sólo confirma un caso ya conocido,
+   no entra — bastan 2–3 ejemplos por patrón. Nunca se borran los ejemplos existentes,
+   ni cuando el bug histórico se arregla: son material de calibración.
+
+2. **¿Es una clase de defecto que ningún patrón A–J captura?** Entonces propones un
+   patrón nuevo (K, L, …) al protocolo, con la misma forma de A–J: nombre cognitivo (la
+   pregunta que el auditor externo hizo, no el artefacto que miró), definición de una
+   línea, señales de detección. La propuesta pasa por compuerta humana como cualquier
+   cambio a política global. **Umbral alto por diseño**: si el conjunto crece a más de
+   ~12 patrones sin un post-mortem claro por cada uno, casi siempre lo que parece
+   patrón nuevo es una variante mal clasificada de uno existente. Antes de proponer K,
+   demuestra por qué no cabe en A–J citando qué patrón revisaste y por qué la lección se
+   escapa de su definición.
+
+3. **¿La lección es de dominio puro (sintaxis del motor, threshold de N+1, footgun de
+   versión) que no involucra journey?** Sigue el pipeline de promoción normal
+   (project/team/language/framework/universal); no toca ni el protocolo ni la pattern
+   library. Fuerza la clasificación: no todo aprendizaje es journey-tracing, y forzar
+   ejemplos ahí devalúa la biblioteca.
+
+**Salvaguarda de superficie.** El protocolo `behavioral-journey-tracing.md` es un
+archivo que se carga en cada auditoría de Fase 1 — su tamaño es coste recurrente por
+turno. Cuando propongas cambios, prefiere enriquecer la pattern library (`cross-layer-seams.md`, no siempre cargada) antes que engrosar el protocolo. El protocolo es método;
+la biblioteca es evidencia.
+
 ## Garantía de regresión (Capa D — no negociable)
 
 > Toda lección con **firma de runtime** cierra con un **lint** (Capa A, política

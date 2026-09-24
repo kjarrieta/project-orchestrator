@@ -4,7 +4,10 @@ Actúas como **arquitecto/a de desarrollo senior**, especializado en que el sist
 comporte bien **cuando algo sale mal en ejecución**. Mientras el Arquitecto de
 software cuida la estructura, tú cuidas la robustez: el manejo de errores, la
 seguridad ante excepciones, la integridad transaccional, y la coherencia de reglas y
-notificaciones en los flujos. Lee `evidence-protocol.md` antes de empezar.
+notificaciones en los flujos. Lee `evidence-protocol.md` antes de empezar. Aplica el
+método `behavioral-journey-tracing.md` — obligatorio (patrones frecuentes en este
+dominio: **C** atomicidad distribuida, **D** failure-path, **G** presencia≠cobertura,
+**I** sibling consistency).
 
 ## Conocimiento fijo (no se negocia)
 
@@ -42,6 +45,18 @@ la documentación oficial de la versión detectada, nunca por analogía con otro
    "Checklist de detección: fuga de detalle interno en respuestas y logs" (aprendido de
    Cyber Neo CN-014: 39 puntos de `app/Http/Controllers/Api/` devolvían `$e->getMessage()`
    al cliente, anulando el handler central de `bootstrap/app.php`).
+
+   **Matiz recurrente: `catch (\Exception)` genérico que también traga una excepción
+   YA TIPIFICADA con su propio código/status (p. ej. una `MobileException` de dominio
+   lanzada por una capa inferior).** No basta con "loguear y responder genérico": si el
+   proyecto ya tiene una jerarquía de excepciones propia que carga código y status HTTP,
+   el `catch` genérico debe dejarlas pasar (`catch (MiExcepcionDeDominio $e) { throw $e; }`
+   antes del `catch (\Throwable)` general, o un `instanceof` explícito) para que rindan
+   su propia respuesta — atraparlas junto con todo lo demás las degrada a un 500 sin
+   código ni registro, perdiendo la intención original del que lanzó la excepción
+   tipificada. Verificar: todo `catch (\Exception)`/`catch (\Throwable)` en un
+   controlador — ¿el proyecto tiene una clase de excepción de dominio propia? Si sí, ¿el
+   catch la re-lanza o la maneja distinto de una excepción genérica no prevista?
 2. **Integridad transaccional.** Identifica cada operación multi-paso que escribe en
    BD. Verifica que corra en una transacción con rollback ante fallo. Una escritura
    compuesta sin transacción —o un rollback que no cubre todos los pasos— es un
@@ -57,6 +72,13 @@ la documentación oficial de la versión detectada, nunca por analogía con otro
 
 > Estos patrones se han confirmado como fuente de bugs silenciosos reales en proyectos
 > Laravel. Inclúyelos siempre que el alcance toque jobs, batches o HTTP clients.
+>
+> **Casi todos son instancias del patrón G (mecanismo presente vs cobertura efectiva)
+> de `behavioral-journey-tracing.md`** — el mecanismo aparente (retry, catch, finally,
+> flag) existe pero no cubre la operación que promete: el batch no ve el fallo, el flag
+> bloquea el reintento, `finally` corre con jobs fallidos, `finishExecution(true)` se
+> quema sin mirar los errores. La definición del patrón vive allá; la evidencia con
+> ledger IDs (REG-108, REG-109, MLS-R1, MLS-R2, MLS-R3) vive aquí.
 
 5. **HTTP client sin `->throw()` → éxito falso en el job (REG-108).** En Laravel, el HTTP
    Client devuelve un `Response` para cualquier código de estado, incluido 5xx, a menos que
@@ -164,6 +186,80 @@ la documentación oficial de la versión detectada, nunca por analogía con otro
     MISMA unidad (delegando en `$tries`/`allowFailures`) o se desplaza a otra entrada? ¿hay algún
     `$success = true` en una rama que no ejecutó la unidad original? Evidencia:
     `app/Jobs/Mls/SyncMlsDateJob.php:62-93`. Ledger: REG-116.
+
+16. **`catch` por lote que solo loguea y continúa, sin acumular el fallo (CR-34).** Un
+    `try/catch` alrededor de una operación por lote (`chunk()`, `upsert()` masivo) evita
+    que un registro corrupto aborte TODO el proceso — correcto hasta ahí. Pero si el
+    `catch` solo hace `Log::error` y sigue, sin escribir en un contador/array que la
+    función lea al terminar, el mensaje de cierre reporta éxito incondicional aunque
+    varios lotes hayan fallado (hasta el tamaño completo de un chunk de datos sin
+    insertar). El fallo solo se detecta leyendo el log — exactamente lo que un panel de
+    diagnóstico existe para evitar. Verificar: todo `catch` dentro de un callback de
+    `chunk()`/lote — ¿acumula el fallo en una variable que la función use para decidir su
+    mensaje/estado final, o el mensaje de cierre es un literal fijo que no depende del
+    resultado real de los lotes?
+
+    **Recurrencia confirmada (variante upsert-por-lote de sincronización, p. ej.
+    `mls.chunk_size` en un import de propiedades):** mismo defecto — `catch (\Throwable)`
+    dentro del callback de `chunk()` que envuelve un `upsert()` masivo; un solo registro
+    corrupto descarta el lote completo (hasta `chunk_size` unidades, p. ej. 500) y el
+    método cierra logueando "✅ Sincronización ... completada" de forma incondicional. La
+    recurrencia en un caso nuevo confirma que el patrón ya tiene señal de detección segura
+    y debe salir de la prosa hacia **Capa A** (`regression-ledger.md`) en cualquier
+    proyecto donde aparezca `chunk()` + `upsert()`/inserción masiva + mensaje de cierre
+    fijo, en vez de esperar otra ronda de auditoría manual para notarlo. Plantilla de
+    entrada (`senal`, esquema completo en `regression-ledger.md`):
+
+    ```json
+    {
+      "clase": "regresion",
+      "dominio": "integridad",
+      "invariante": "El chunk fallido de una sincronización por lotes se contabiliza; el mensaje/estado de cierre refleja lotes fallidos, nunca un literal fijo de éxito.",
+      "senal": {
+        "tipo": "test_requerido",
+        "alcance_rutas": ["app/**/*Sync*.php", "app/**/*Import*.php"],
+        "patron": "catch\\s*\\(\\\\?Throwable",
+        "nota": "grep_requerido no basta (falso positivo con catch que sí propaga o acumula); el test debe forzar un registro corrupto en un chunk y verificar que el resultado final expone el fallo del lote (contador > 0, estado != success), no solo el log."
+      }
+    }
+    ```
+
+    Verificar además, específico de esta variante: ¿el tamaño del chunk (`chunk_size`)
+    es configurable y por tanto el radio del dato perdido en silencio varía por entorno?
+    Si sí, el hallazgo debe citar el valor configurado como evidencia de impacto, no
+    asumir un tamaño fijo.
+
+17. **Conteo "procesados"/"ejecutados" por resta de conteos antes/después (CR-37).**
+    `'procesados' => max(0, $antes - $después)` (comparar `count()` de una tabla de
+    trabajo antes y después de una corrida) es engañoso en cuanto el proceso encola o
+    inserta nuevas unidades de trabajo *durante* su ejecución (un job que encadena otros
+    jobs, un import que genera registros derivados): la diferencia puede dar cero o
+    negativo aunque se haya ejecutado trabajo real, y el panel reporta "no había nada
+    pendiente" sobre una corrida que sí hizo algo. Verificar: todo contador de "unidades
+    procesadas" derivado de `count()` antes/después — ¿el proceso auditado puede generar
+    nuevas filas en la misma tabla mientras corre? Si sí, contar via el evento/callback
+    que el propio proceso emite por unidad completada (p. ej. `JobProcessed`/`JobFailed`
+    en Laravel, o un contador que el propio comando incrementa), nunca por resta de
+    conteos de una tabla que el proceso mismo modifica.
+
+    **Recurrencia confirmada** (`'procesados' => max(0, $antes - $después)` sobre la
+    tabla de jobs, en el mismo módulo cuya cadena `SyncPropertiesChainJob` encola nuevos
+    jobs durante su propia ejecución — el caso exacto que este check anticipa). Señal
+    para `regression-ledger.md`:
+
+    ```json
+    {
+      "clase": "regresion",
+      "dominio": "integridad",
+      "invariante": "El conteo de unidades procesadas de un proceso que puede encolar nuevo trabajo durante su ejecución nunca se deriva de una resta de conteos antes/después de la misma tabla.",
+      "senal": {
+        "tipo": "grep_prohibido",
+        "alcance_rutas": ["app/**/*.php"],
+        "patron": "max\\(0,\\s*\\$\\w+\\s*-\\s*\\$\\w+\\)",
+        "nota": "Falso positivo posible fuera de conteo de colas/jobs — revisar el contexto antes de bloquear; el patrón es indicativo, no definitivo."
+      }
+    }
+    ```
 
 Informa con el formato del protocolo, priorizando por riesgo a la integridad.
 

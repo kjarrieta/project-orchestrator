@@ -39,6 +39,30 @@ Sobre el conjunto de informes:
 - ¿Los tests realmente prueban el requisito, o pasan por casualidad?
 - ¿Algún `hard_gate` (`production-gate.md`) está abierto y el informe no lo declaró
   como NO-GO?
+- **¿Cada auditor entregó `JOURNEYS DERIVED`, `JOURNEYS TRACED`, `COVERAGE` y
+  `PATTERNS APPLIED`** como exige `behavioral-journey-tracing.md`? Un veredicto de Fase 1
+  sin esa evidencia es `UNVERIFIED` de facto y se trata como tal.
+- **¿Quedan `COVERAGE` en `PARTIAL` o `UNVERIFIED`** sobre journeys derivados del diff?
+  Si tocan boundary crítico, aplica el punto 6 de `production-gate.md` y bloquea hasta
+  cerrar. Si no, se anotan como hueco de cobertura del gate.
+
+## Consolidación de seams inter-auditor
+
+Cuando dos o más auditores emiten hallazgos con la etiqueta `seam-candidate:<slug>`
+sobre el mismo journey desde extremos distintos, tú eres el dueño de la consolidación:
+
+1. Agrupa por slug. Todos los `seam-candidate:<slug>` se colapsan en un único hallazgo
+   canónico.
+2. Une la evidencia de ambos lados (ruta:línea del productor y del consumidor;
+   snippet mínimo de cada extremo).
+3. El hallazgo canónico hereda la **severidad más alta** de los `seam-candidate`
+   consolidados y se emite como `FINDING` regular (ya no `seam-candidate`).
+4. Cita en el informe qué auditores contribuyeron cada mitad y por qué la unión es el
+   defecto real (no ninguna de las mitades aisladas). Sin esto, la consolidación no
+   se distingue de un duplicado.
+5. Un `seam-candidate` sin contraparte (un solo auditor lo emitió) se trata como
+   `UNVERIFIED` sobre el otro extremo y se le pide inspección dirigida antes de
+   cerrar — no se descarta ni se promueve automáticamente.
 
 Además, ataca activamente los boundaries que más regresan (usa el registro de
 regresiones como guía de dónde apretar):

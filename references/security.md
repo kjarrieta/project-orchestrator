@@ -4,6 +4,10 @@ Actúas como **ingeniero/a de seguridad de aplicaciones senior**. Tu trabajo es
 **defensivo y autorizado**: pruebas el propio proyecto de la persona para encontrar y
 cerrar debilidades antes que un atacante, nunca para atacar sistemas ajenos. Lee
 `evidence-protocol.md` antes de empezar. Sé conciso: hallazgos compactos, sin relleno.
+Aplica el método `behavioral-journey-tracing.md` — obligatorio (patrones frecuentes en
+este dominio: **F** authorization symmetry — visibilidad, ruta, policy, filtro de
+datos deben resolver al mismo capability boundary — e **I** sibling consistency entre
+endpoints/resources hermanos que exponen el mismo dato sensible).
 
 ## Alcance y ética
 
@@ -103,6 +107,52 @@ Dos controles que se prueban siempre, en toda ruta que reciba un identificador o
   el dato de la URL es defensa en profundidad contra los vectores de fuga de la URL, no
   un sustituto de TLS ni de la autorización.
 
+## Asimetría de compuerta granular entre endpoints/resources hermanos (recurrencia confirmada)
+
+> **Aplicación del patrón I (sibling consistency) + patrón F (authorization symmetry)
+> de `behavioral-journey-tracing.md` a exposición de PII.** Definiciones canónicas
+> allá; evidencia de dominio aquí.
+
+Cuando un dato sensible (PII: documento, teléfono, correo) tiene un permiso granular
+propio además del permiso general del módulo (p. ej. `tenancy.acquisitions.index` para
+listar vs. `tenancy.acquisitions.contacts.view` para ver el contacto), **cada endpoint o
+Resource que sirve ese mismo dato debe consultar el mismo permiso granular** — no basta
+con que uno de los varios puntos de exposición lo haga. Caso confirmado: un listado
+(`CaseListItemResource`) sí exige `contacts.view` antes de serializar `owner`, pero un
+endpoint de detalle (`CaseDetailResource`) y un endpoint de estado de captura
+(`CaptureStateService::ownerValues()`) sobre el **mismo recurso** lo omiten y sirven
+`document_number`, `phone`, `email` a cualquiera con solo el permiso general de listar.
+
+La asimetría vive entre controladores/resources distintos que exponen el mismo campo del
+mismo recurso de dominio.
+
+Verificar: por cada campo marcado como sensible por un permiso granular en **algún**
+punto del código (grep del nombre del permiso, p. ej. `contacts.view`,
+`*.sensitive.view`), listar TODOS los Resources/Services/Controllers que serializan ese
+mismo campo (grep del nombre del campo: `document_number`, `phone`, `email`, `landline`)
+y confirmar que cada uno consulta el mismo permiso antes de incluirlo — no solo el que
+la auditoría anterior ya corrigió.
+
+```bash
+grep -rn "document_number\|->phone\b\|->email\b" app/Http/Resources app/Services --include=*.php | grep -v "can('tenancy\|acq_can_view_contacts"
+```
+
+Señal para `regression-ledger.md` (test, porque el criterio real es "el mismo campo,
+en todo punto de serialización, exige el mismo permiso" — no lo expresa un grep simple):
+
+```json
+{
+  "clase": "regresion",
+  "dominio": "autorizacion",
+  "invariante": "Todo punto de serialización de un campo con permiso granular propio (PII de contacto) consulta ese permiso, no solo el permiso general del módulo.",
+  "senal": {
+    "tipo": "test_requerido",
+    "alcance_rutas": ["app/Http/Resources/**/*.php", "app/Services/**/*.php"],
+    "nota": "Test: usuario con solo el permiso general (sin el granular) pide cada endpoint que sirve el recurso (listado, detalle, capture-state, cualquier futuro) y ninguna respuesta contiene el campo sensible."
+  }
+}
+```
+
 ## Política de módulos CRUD y de cambio de estado (permisos, por proyecto)
 
 Toda funcionalidad, módulo o formulario que maneje registros —**crear, consultar, editar,
@@ -170,6 +220,7 @@ sea efectivamente el patrón del framework, no una versión degenerada.
 | `env('SESSION_SECURE_COOKIE')` sin valor por defecto en `config/session.php` | PHP evalúa `null` como `false`; la cookie de sesión se envía sobre HTTP aunque se use HTTPS — invisible, ningún test falla por esto | HIGH |
 | `->where('col', 'LIKE', "%{$valor}%")` con `$valor` del cliente sin escapar `%`/`_` | Inyección de comodín: un valor compuesto solo de `%`/`_` (ej. `?campo=%`) casa con cualquier fila — el filtro deja de filtrar y expone el conjunto completo (bypass de filtro, no solo ruido de resultados) | HIGH (endpoint público) / MEDIUM (panel autenticado) — ver `memory/php/security.md` |
 | `LIKE "%valor%"` sobre un campo que en realidad es un slug/enum de valores discretos (comparado por igualdad en el resto del mismo endpoint) | Falsos positivos por coincidencia parcial (`casa` casa con `casa-campestre`) — inconsistente con los demás filtros del mismo query | MEDIUM |
+| Un campo que declara la **procedencia/confiabilidad** de otro dato (`source`, `origin`, `verified_by`, `geocode_source: 'manual'` vs. slug de proveedor automático) se persiste tal cual llega en el payload del cliente, sin validar contra una whitelist de valores permitidos ni contrastarlo con cómo se obtuvo el dato en el servidor | `CWE-345` (Insufficient Verification of Data Authenticity): el cliente puede declarar un dato automático como "verificado manualmente" (o al revés), rompiendo cualquier invariante de negocio que dependa de ese campo (p. ej. "un valor manual nunca se invalida automáticamente, uno derivado sí") | MEDIUM — sube a HIGH si el campo de procedencia gobierna una decisión de seguridad/autorización, no solo de UX |
 
 ### Verificación específica para componentes Livewire
 
@@ -192,6 +243,77 @@ Al auditar cualquier archivo en `app/Livewire/`:
    `delete*`) tengan su propio `abort_unless` — el middleware de ruta y el `mount()`
    no protegen llamadas Livewire directas a métodos del componente (ver memoria de
    usuario `livewire-method-authorization.md`).
+5. **¿La propiedad se CALCULA (no se recibe del cliente) dentro de `mount`/`boot`/
+   `hydrate`/`render` a partir de una fuente de scope o permiso** —
+   `CaseVisibility`-equivalente, `->hasPermissionTo(`, `->hasRole(`, `->can(`,
+   `Gate::allows|denies|check(`, cualquier `*Resolver::visibleTo(`? Esto NO es un id/uuid
+   de objeto (eso ya lo cubre el punto 1) — es un booleano de gate (`canFilterX`,
+   `canViewAll`), un array de ids de alcance, o cualquier valor que luego decide qué
+   catálogo/consulta privilegiada se activa.
+   - Sí → **`#[Locked]` es insuficiente por sí solo si el valor se lee más de una vez en
+     la vida del componente; preferir `#[Computed]`** (se reevalúa en cada acceso, sin
+     snapshot que envenenar). Si se mantiene como propiedad, exige `#[Locked]` sin
+     excepción. Sin ninguna de las dos, el cliente la reescribe vía `syncInput` en
+     cualquier request posterior y reactiva la rama con privilegio ampliado —
+     **clasificar como `privilege_escalation`/`sensitive_data_exposure`, HIGH**: expone
+     un catálogo (usuarios, sedes, datos de otros tenants/dueños) a quien no debía verlo.
+   - Detecta el patrón leyendo el CUERPO COMPLETO del método, no solo la línea de
+     asignación: el scope puede resolverse en una variable intermedia y consultarse
+     líneas después — un grep que solo busque `= CaseVisibility::forUser(` en la misma
+     línea de la asignación de la propiedad no lo encuentra.
+   - Reincidencia confirmada en dos proyectos independientes tras la corrección inicial
+     de un caso de id-de-objeto (ver `memory/php/security.md`, entrada "Reincidencia
+     generalizada"): la corrección puntual no se generalizó a "toda propiedad derivada de
+     scope", solo a "todo id de objeto" — el patrón volvió a colarse con un booleano.
+
+## Checklist de auditoría: filtro de cliente vs. scope de visibilidad (composición por AND)
+
+Cuando un endpoint/componente agrega filtros nuevos (arrays de ids, rangos de fecha,
+texto) del lado del cliente (`#[Url]`, query string, body) a una consulta que YA tiene
+un scope de visibilidad server-side aplicado (`view_own`/`view_by_office`/`view_all` o
+equivalente), verificar por LECTURA LITERAL del método completo que construye la
+consulta — nunca solo por grep superficial de `orWhere`:
+
+1. **Orden de aplicación:** el scope de visibilidad (`$visibility->applyTo($query)` o
+   equivalente) se aplica ANTES de encadenar los filtros del cliente, no después ni en
+   paralelo.
+2. **Agrupación de cualquier `OR`:** todo `orWhere`/`orWhereIn`/`orWhereNull` de nivel
+   superior debe estar envuelto en un `->where(fn ($q) => ...)` — un `OR` sin agrupar
+   escapa al `AND` del scope y el filtro puede ENSANCHAR el resultado en vez de solo
+   intersectarlo con lo que el scope ya permite.
+3. **Origen del valor que RESUELVE el scope, no solo el que FILTRA dentro de él:** un
+   filtro de cliente (p. ej. `officeIds` en la URL) nunca debe pasarse a la función que
+   decide qué sedes/usuarios puede ver el propio usuario — esa decisión usa solo el
+   `officeIds` que la sesión autenticada ya resolvió server-side. Si el mismo nombre de
+   variable existe en dos roles (filtro de consulta vs. insumo de resolución de scope),
+   confirmar cuál es cuál en cada punto de uso.
+
+Criterio de PASS: cada filtro nuevo queda como condición `AND` de nivel superior sobre
+un `Builder` ya scopeado, y ningún filtro de cliente alimenta la resolución del propio
+scope. Documentar el PASS con la cita `archivo:línea` del método leído completo (no del
+diff), igual que cualquier hallazgo — es un invariante reusable, no una obviedad.
+
+## Checklist de auditoría: fuente del actor en columnas/logs de auditoría
+
+Para toda columna que registre "quién hizo esto" (`updated_by`, `created_by`,
+`actor_id`, campo equivalente de un log de auditoría) en un modelo mutado por más de un
+canal (web + API/móvil, o multi-guard):
+
+1. Ubicar el método de persistencia que escribe la columna y listar **todos** sus
+   llamadores (no solo el más reciente en el diff).
+2. Por cada llamador, confirmar que el id llega como **parámetro explícito** cuyo valor
+   se originó en el contexto de autenticación de ESE canal — `auth()->id()` para un
+   canal con guard `web`, el usuario resuelto por el guard de la API (p. ej. Sanctum,
+   `$ctx->user?->id`) para un canal de API — nunca de un campo del payload/body
+   (`$request->input('actor_id')`, `$payload['user_id']`).
+3. Si el método de persistencia vive en un Service compartido entre canales, verificar
+   que el Service NO llame `auth()->id()` internamente — un Service así asume el guard
+   por defecto del proyecto, que puede no coincidir con el guard que autenticó la
+   request del canal de API, y falla en silencio o atribuye la escritura al usuario
+   equivocado.
+
+Criterio de fallo: cualquier llamador donde el id de actor se derive, directa o
+indirectamente, de un valor que el cliente controla.
 
 ## Checklist de auditoría: rutas API Laravel + Sanctum
 
@@ -233,6 +355,28 @@ Antes de declarar PASS en gestión de credenciales/configuración:
 - Si existe: confirmar que `'enabled' => env('...', false)` (default **false**, no **true**).
 - Si el default es `true`: HIGH, con note de verificar override en `.env` de producción/staging.
 - `composer.json`: si `laravel/telescope` está en `require` (no `require-dev`), hay riesgo de que Telescope corra en producción.
+- **`Telescope::filter()` que anula el filtro por entorno del scaffold (recurrencia
+  confirmada, proyecto con sincronización MLS de miles de queries por corrida).** El
+  scaffold genera `Telescope::filter(fn (IncomingEntry $entry) => $this->app->environment('local') || $entry->isReportableException() || ...)`.
+  Si el código lo reemplaza por `Telescope::filter(fn (IncomingEntry $entry) => true)` (o
+  cualquier condición que ignore el entorno), la protección real pasa a depender
+  exclusivamente de que el paquete esté en `require-dev` — un solo despliegue con
+  dependencias de desarrollo (staging, una máquina de pruebas, un `composer install` sin
+  `--no-dev`) graba cada request/query/job/log sin límite hasta llenar disco o degradar
+  la BD compartida.
+  ```bash
+  grep -n "Telescope::filter" app/Providers/*.php
+  ```
+  Criterio de fallo: el callback no referencia `$this->app->environment(...)` ni ninguna
+  condición equivalente — devuelve `true` de forma incondicional o solo filtra por tipo
+  de entrada.
+- **`telescope:prune` ausente del scheduler.** Sin poda programada, `telescope_entries`
+  crece sin límite en cualquier entorno donde Telescope esté activo, incluso con el
+  filtro por entorno correcto (el propio entorno `local`/staging igual acumula).
+  ```bash
+  grep -n "telescope:prune" routes/console.php app/Console/Kernel.php 2>/dev/null
+  ```
+  Sin resultados = MEDIUM. Remediación: `Schedule::command('telescope:prune --hours=48')->daily()`.
 
 ## Checklist de auditoría: dependencias y cadena de suministro (SCA)
 
@@ -410,6 +554,48 @@ Dos patrones de manejo de archivos que integrations.md ya declaraba en principio
    comparar el tamaño descomprimido acumulado contra un límite razonable para el lote
    esperado. Aplica en particular a ZIPs que llegan de un proveedor externo (FTP, upload)
    donde el atacante controla el contenido del archivo.
+
+## Checklist de auditoría: proxy server-side de credenciales de terceros (geocoding, mapas, cualquier API paga)
+
+Cuando el proyecto llama a una API externa facturable/con credencial (Google
+Maps/Geocoding, un proveedor de pagos, un servicio de envío de correo/SMS) desde el
+servidor y expone al cliente solo una parte del resultado (una imagen, un JSON
+normalizado), verificar los cuatro puntos siguientes — no asumir que "es un proxy" ya
+implica que está bien hecho:
+
+1. **Separación de credenciales por superficie.** Si el proveedor distingue key de
+   navegador (restringida por referrer, se expone al cliente para su SDK JS) de key de
+   servidor (restringida por IP, nunca sale del backend), confirmar que cada llamada usa
+   la que corresponde — una llamada server-to-server con la key de navegador (o viceversa)
+   es un error de configuración que el proveedor puede rechazar en producción y que
+   invita a reutilizar la key equivocada donde sí importa el aislamiento.
+   ```bash
+   grep -rn "GOOGLE_MAPS_API_KEY\|maps\.key\b" app/ resources/ | grep -v "\.key'\]" # candidatos a key de navegador usada server-side
+   ```
+2. **La key de servidor nunca llega al HTML/JS/`<img src>` que ve el navegador.**
+   Confirmar que la respuesta que el proxy reenvía al cliente (URL de imagen, JSON) no
+   contiene la key en ningún parámetro, y que ningún `<script>`/`window.*` la expone.
+3. **SSRF: el host de destino es fijo, el input del usuario solo entra como parámetro de
+   consulta con validación estricta de tipo/rango.** Si la petición saliente arma una
+   dirección de texto libre (una consulta de geocoding, un término de búsqueda) verificar
+   que va como query param al endpoint fijo del proveedor (`ENDPOINT` constante), nunca
+   como parte del host/ruta que el atacante pudiera manipular para redirigir la petición.
+   Parámetros numéricos (lat/lng/zoom/tamaño de imagen) deben validarse con `numeric
+   between`/`integer between`/whitelist ANTES de entrar tanto a la petición saliente como
+   a la clave de caché — sin esa validación, la clave de caché es manipulable y la petición
+   saliente puede exceder los límites esperados.
+4. **Throttle/rate-limit en el endpoint que dispara la llamada facturable**, distinto (y
+   además) del throttle genérico del grupo de rutas — un usuario autenticado del propio
+   tenant no debe poder generar un volumen arbitrario de llamadas facturables variando el
+   parámetro de consulta en cada request.
+
+Criterio de PASS: los cuatro puntos verificados con cita `archivo:línea`, no solo "usa un
+proxy". Evidencia real (Cyber Neo, auditoría de rama 2026-09-22): módulo de geocodificación
++ proxy de Google Static Maps en Laravel — key de servidor (`services.google.maps.server`)
+separada de la de navegador, `lat`/`lng`/`zoom`/`size` validados numéricamente antes de
+usarse en la query saliente y en el hash de caché, throttle dedicado en la ruta del proxy y
+en el endpoint móvil que activa geocodificación — los cuatro puntos PASS, documentados así
+para no reauditarlos en corridas futuras del mismo proyecto.
 
 ## Modos
 

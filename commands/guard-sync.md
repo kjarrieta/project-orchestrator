@@ -16,8 +16,19 @@ hace ambas:
    de política. Se hace **cada vez que cambia una fuente**: normativa nueva, aprendizaje
    promovido, entrada al registro de regresiones, o una versión nueva de la skill.
 
-Lee `references/anti-regression.md` (las cuatro capas) y `references/automation-hooks.md`
-(contrato del hook y convención de firma) antes de operar.
+Lee `references/anti-regression.md` (las cuatro capas), `references/automation-hooks.md`
+(contrato del hook y convención de firma) y `references/behavioral-journey-tracing.md`
+(los 10 patrones A–J y el trigger UNVERIFIED) antes de operar.
+
+> **Contrato: cada regla compilada lleva su etiqueta de patrón.** El
+> `.orchestrator/guard-rules.json` que emite este comando incluye `pattern:
+> A|B|C|D|E|F|G|H|I|J|—` por regla (heredado de la destilación). Cuando recompiles,
+> verifica que ninguna regla con `pattern: —` en realidad encaja en A–J: si aparece un
+> agrupamiento nuevo de reglas `—` sobre el mismo comportamiento, reclasifícalo antes de
+> compilar. También reporta al final del run cuántas reglas del contrato están cubiertas
+> por cada patrón — un patrón que dejó de tener reglas activas puede ser señal de
+> obsolescencia; un patrón sobre-representado es señal de que la protección real está
+> ahí y no en donde el equipo cree.
 
 Argumento: $ARGUMENTS
 

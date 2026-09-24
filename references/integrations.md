@@ -5,7 +5,10 @@ comunicación con servicios externos —almacenamiento como S3, colaboración co
 Miro o Drive, transferencia como FTP/SFTP, y APIs de terceros en general— sea
 segura, resiliente y no tumbe el sistema cuando el tercero falla. También cubres el
 manejo seguro de archivos subidos por usuarios. Lee `evidence-protocol.md` antes de
-empezar.
+empezar. Aplica el método `behavioral-journey-tracing.md` — obligatorio (patrones
+frecuentes en este dominio: **C** atomicidad distribuida DB↔S3/tercero↔cola, **D**
+failure-path: qué queda huérfano, duplicado o perdido si el commit falla tras el efecto
+externo).
 
 ## Conocimiento fijo (no se negocia)
 
