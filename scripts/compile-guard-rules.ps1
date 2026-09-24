@@ -90,13 +90,32 @@ if (Test-Path -LiteralPath $ledgerPath) {
             })
             continue
         }
+        if (-not $e.senal.PSObject.Properties['alcance_rutas'] -or -not $e.senal.alcance_rutas) {
+            $idEntrada = if ($e.PSObject.Properties['id']) { [string]$e.id } else { '(sin-id)' }
+            [void]$sinFirma.Add([ordered]@{
+                id = $idEntrada; fuente = 'regression-ledger'
+                motivo = 'senal sin alcance_rutas: no se sabe a que archivos aplica'
+            })
+            continue
+        }
         # Una entrada ya RESUELTO_CON_TEST conserva su guardian: sigue bloqueando.
+        # Tolera tanto el esquema canonico (dominio/invariante/severidad) como un volcado
+        # en ingles (domain/title/severity, p.ej. de una sesion de code-review).
+        $dominio = if ($e.PSObject.Properties['dominio']) { [string]$e.dominio }
+                   elseif ($e.PSObject.Properties['domain']) { [string]$e.domain }
+                   else { '' }
+        $invariante = if ($e.PSObject.Properties['invariante']) { [string]$e.invariante }
+                      elseif ($e.PSObject.Properties['title']) { [string]$e.title }
+                      else { '' }
+        $severidadVal = if ($e.PSObject.Properties['severidad']) { [string]$e.severidad }
+                        elseif ($e.PSObject.Properties['severity']) { [string]$e.severity }
+                        else { 'HIGH' }
         [void]$reglas.Add([ordered]@{
-            id            = [string]$e.id
-            fuente        = "regression-ledger:$([string]$e.dominio)"
-            invariante    = [string]$e.invariante
+            id            = $(if ($e.PSObject.Properties['id']) { [string]$e.id } else { '(sin-id)' })
+            fuente        = "regression-ledger:$dominio"
+            invariante    = $invariante
             gate          = $(if ($e.PSObject.Properties['gate']) { [string]$e.gate } else { 'BLOCKING' })
-            severidad     = $(if ($e.PSObject.Properties['severidad']) { [string]$e.severidad } else { 'HIGH' })
+            severidad     = $severidadVal
             correccion    = $(if ($e.senal.PSObject.Properties['nota']) { [string]$e.senal.nota } else { '' })
             alcance_rutas = @($e.senal.alcance_rutas)
             senal         = $e.senal
@@ -130,8 +149,8 @@ function Import-FirmasDeMarkdown {
         $id = if ($titulo -match '^([A-Z][A-Z0-9]+(?:-[A-Z0-9]+){1,3})') { $Matches[1] }
               else { "$Etiqueta::" + ($titulo -replace '[^\w]+', '-').Trim('-').ToLower() }
 
-        $m = [regex]::Match($b, '```senal\s*\r?\n(.*?)\r?\n```', 'Singleline')
-        if (-not $m.Success) {
+        $matches_ = [regex]::Matches($b, '```senal\s*\r?\n(.*?)\r?\n```', 'Singleline')
+        if ($matches_.Count -eq 0) {
             [void]$sinFirma.Add([ordered]@{
                 id = $id; fuente = $Etiqueta
                 motivo = 'politica en prosa sin bloque ```senal```: no exigible por maquina'
@@ -139,34 +158,41 @@ function Import-FirmasDeMarkdown {
             $sin++
             continue
         }
-        try { $s = $m.Groups[1].Value | ConvertFrom-Json }
-        catch {
-            [void]$sinFirma.Add([ordered]@{
-                id = $id; fuente = $Etiqueta
-                motivo = "bloque senal con JSON invalido: $($_.Exception.Message)"
+        $idx = 0
+        foreach ($m in $matches_) {
+            $idx++
+            # Sufijo -a, -b, -c... cuando hay mas de una senal en la misma entrada.
+            # Con una sola senal se conserva el ID limpio para no romper compatibilidad.
+            $ruleId = if ($matches_.Count -eq 1) { $id } else { "$id-" + [char]([int][char]'a' + $idx - 1) }
+            try { $s = $m.Groups[1].Value | ConvertFrom-Json }
+            catch {
+                [void]$sinFirma.Add([ordered]@{
+                    id = $ruleId; fuente = $Etiqueta
+                    motivo = "bloque senal con JSON invalido: $($_.Exception.Message)"
+                })
+                $sin++
+                continue
+            }
+            if (-not $s.PSObject.Properties['alcance_rutas'] -or -not $s.alcance_rutas) {
+                [void]$sinFirma.Add([ordered]@{
+                    id = $ruleId; fuente = $Etiqueta
+                    motivo = 'senal sin alcance_rutas: no se sabe a que archivos aplica'
+                })
+                $sin++
+                continue
+            }
+            [void]$reglas.Add([ordered]@{
+                id            = $ruleId
+                fuente        = $Etiqueta
+                invariante    = $titulo
+                gate          = $(if ($s.PSObject.Properties['gate']) { [string]$s.gate } else { 'BLOCKING' })
+                severidad     = $(if ($s.PSObject.Properties['severidad']) { [string]$s.severidad } else { 'HIGH' })
+                correccion    = $(if ($s.PSObject.Properties['correccion']) { [string]$s.correccion } else { '' })
+                alcance_rutas = @($s.alcance_rutas)
+                senal         = $s
             })
-            $sin++
-            continue
+            $conFirma++
         }
-        if (-not $s.PSObject.Properties['alcance_rutas'] -or -not $s.alcance_rutas) {
-            [void]$sinFirma.Add([ordered]@{
-                id = $id; fuente = $Etiqueta
-                motivo = 'senal sin alcance_rutas: no se sabe a que archivos aplica'
-            })
-            $sin++
-            continue
-        }
-        [void]$reglas.Add([ordered]@{
-            id            = $id
-            fuente        = $Etiqueta
-            invariante    = $titulo
-            gate          = $(if ($s.PSObject.Properties['gate']) { [string]$s.gate } else { 'BLOCKING' })
-            severidad     = $(if ($s.PSObject.Properties['severidad']) { [string]$s.severidad } else { 'HIGH' })
-            correccion    = $(if ($s.PSObject.Properties['correccion']) { [string]$s.correccion } else { '' })
-            alcance_rutas = @($s.alcance_rutas)
-            senal         = $s
-        })
-        $conFirma++
     }
     Add-Fuente -Ruta $Path -Estado 'OK' -Reglas $conFirma -SinFirma $sin
 }
