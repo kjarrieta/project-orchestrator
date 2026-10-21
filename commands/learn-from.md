@@ -46,15 +46,6 @@ En la ruta dada, busca conocimiento escrito por cualquier agente o persona:
 5. **Compuerta**: presenta el resumen (qué se extrajo, a qué nivel va cada cosa, qué
    quedó dudoso) y escribe en la memoria del orquestador **solo tras el visto bueno**
    — una entrada global mala se replica a todos los proyectos futuros.
-6. **Destila firma a lo que tenga firma.** Un aprendizaje de seguridad, integridad,
-   aislamiento de tenant o concurrencia con señal de runtime detectable lleva su bloque
-   ```` ```senal ```` bajo la entrada (esquema en `references/regression-ledger.md`). Es la
-   misma regla que el Aprendiz aplica al cerrar una corrida: *ninguna lección de esa
-   familia queda solo como prosa*. Lo que no tenga firma clara se queda en prosa y aparece
-   como hueco declarado al compilar — no inventes una regex para aparentar cobertura.
-7. **Propaga: `/guard-sync --all`.** Anexar conocimiento no lo hace exigible; compilarlo,
-   sí. Hasta recompilar, el aprendizaje nuevo no detiene ninguna escritura en ningún
-   proyecto.
 
 ## Reglas
 

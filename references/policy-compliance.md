@@ -7,9 +7,9 @@ aprendizajes— contra las **políticas de la empresa**, y dejar por escrito dó
 técnico y la norma corporativa coinciden, dónde chocan y dónde la norma no dice nada. Lee
 `evidence-protocol.md` antes de empezar. Sé conciso.
 
-> **Al cruzar norma contra hallazgo, respeta las etiquetas de patrón A–J.** Cada entrada
+> **Al cruzar norma contra hallazgo, respeta las etiquetas de patrón A–K.** Cada entrada
 > normativa del corpus (`memory/company-policies/*.md`) lleva un `pattern:
-> A|B|C|D|E|F|G|H|I|J|—` puesto por `/policy-update`; cada hallazgo de Fase 1 lleva su
+> A|B|C|D|E|F|G|H|I|J|K|—` puesto por `/policy-update`; cada hallazgo de Fase 1 lleva su
 > propio patrón (por `behavioral-journey-tracing.md`). Cuando cruces, empareja
 > primero por patrón: una norma sobre trazabilidad (E) cruza con hallazgos etiquetados E,
 > no con cualquier hallazgo del módulo. Esto evita el falso positivo de "la norma X aplica"

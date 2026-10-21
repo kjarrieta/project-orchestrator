@@ -41,12 +41,19 @@ persistido o expuesto. El conjunto no se inventa; se deriva del cambio bajo audi
 | Job/cola nueva | despacho → ejecución → reintento → duplicación → idempotencia |
 | Migración | expand → deploy → contract; reversibilidad |
 | Cambio en identificador que cruza cliente↔servidor | productor JS → validador servidor → consumidor de storage |
+| Método modificado con hermanos en la misma clase/flujo (otro paso de un wizard, otra acción CRUD, otro handler del mismo dominio) | enumerar los hermanos y comparar guardas/autorización/validación entre el tocado y cada uno — deben compartir la misma regla salvo diferencia explícita |
+| Acción en lote/masiva (`whereIn`, `chunk`, `update()` directo sobre query) sobre una entidad que también tiene una operación de un solo registro con su propio servicio/validador | comparar la regla de negocio aplicada en el lote contra la del registro individual — ¿el lote reusa el mismo servicio o reimplementa (o se salta) la regla? |
+| Chequeo de "vacío/ausente" (`empty()`, `isset()`, `count() === 0`, `foreach` sobre catálogo/config) que decide si se aplica una regla, geocodifica, guarda o bloquea | trazar qué representa "vacío" para quien lo produce (nunca tuvo valor / se quedó sin el último valor tras una operación) y si el consumidor coincide en el significado — ver patrón K |
+| Parámetro de confiabilidad de cola/job modificado (`tries`, `backoff`, `releaseAfter`, `timeout`, `uniqueFor`) sin que el job en sí sea nuevo | recalcular el presupuesto combinado (tries × intervalo de liberación/reintento vs timeout real de la operación) — ¿el mecanismo puede agotarse antes de completar? |
+| Control de UI (select/pillbox/enum/radio) que reemplaza una lista de opciones existente | verificar que el nuevo control cubre el mismo conjunto de valores que el anterior, en particular valores del enum del dominio que ya no tienen opción |
+| Operación de reversión/deshacer (`revert*`, `rollback*`, `undo*`, `cancel*`) nueva o modificada | retrazar simétricamente la operación directa que revierte: todo lo que esa operación mutó (incluye efectos en cascada/recursivos), ¿lo deshace la reversión? |
+| Verificación/gate que compara un estado "antes" y "después" (migración, snapshot, hash, conteo de verificación) | confirmar que ambos lados se calculan con la misma función/criterio — nunca una versión "vieja" del cálculo contra una "nueva" |
 
 Si el diff no produce ningún journey por estas señales, el auditor debe declararlo
 explícitamente (`JOURNEYS DERIVED: NONE — <justificación>`); no puede simplemente omitir
 la sección.
 
-## 2. Los 10 patrones cognitivos
+## 2. Los 11 patrones cognitivos
 
 Aplica el patrón cuya pregunta encaja al journey. La pregunta va primero; el artefacto
 es su instrumento.
@@ -81,6 +88,12 @@ es su instrumento.
 - **J. Change vs ecosystem.** *¿La infraestructura acompaña el uso previsto del cambio?*
   Columna nueva usada para filtrar/ordenar sin índice; enum nuevo sin migración de datos;
   evento nuevo sin consumidor; feature flag sin telemetría.
+- **K. Empty-value ambiguity.** *¿Esta representación vacía significa "sin
+  restricción/sin dato" o "restringe a nada/requisito no resuelto", y coinciden ambos
+  lados del boundary en cuál? Un array vacío, una clave ausente o un `foreach` que no
+  itera no es lo mismo para quien lo escribe que para quien lo lee — cuando difieren,
+  el sistema falla abierto (deja pasar lo que debía bloquear) o cierra donde debía
+  heredar.
 
 ## 3. Salida obligatoria del auditor
 
@@ -163,5 +176,5 @@ Un seam sin cerrar en Fase 2 (consolidación) queda como `FINDING` a la compuert
 ## 7. Evolución
 
 Cuando un post-mortem identifique una clase de defecto que no encaje en ninguno de los
-10 patrones, se añade como patrón K y se actualiza `cross-layer-seams.md` con la
+11 patrones, se añade como patrón L y se actualiza `cross-layer-seams.md` con la
 evidencia. Editar aquí es raro; editar la pattern library es esperable.

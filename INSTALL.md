@@ -1,7 +1,7 @@
 # Instalación — project-orchestrator
 
 Orquestador de proyectos de software (implementación actual sobre Claude Code, agnóstico
-de proveedor): dirige un **equipo de agentes senior**
+de proveedor): dirige **12 agentes senior**
 (arquitectura, BD, APIs, seguridad, QA, frontend, documentación…) en fases de
 **auditoría paralela de solo lectura → compuerta de aprobación humana → aplicación**.
 Regla innegociable: **cero suposiciones** (evidencia `ruta:línea` + doc oficial) y
@@ -12,61 +12,16 @@ Regla innegociable: **cero suposiciones** (evidencia `ruta:línea` + doc oficial
 **Windows (PowerShell):**
 ```powershell
 git clone https://github.com/kjarrieta/project-orchestrator "$HOME\.claude\skills\project-orchestrator"
-Copy-Item "$HOME\.claude\skills\project-orchestrator\commands\*.md" "$HOME\.claude\commands\" -Force
+Copy-Item "$HOME\.claude\skills\project-orchestrator\commands\*" "$HOME\.claude\commands\" -Force
 # Reiniciá Claude Code
 ```
 
 **macOS / Linux:**
 ```bash
 git clone https://github.com/kjarrieta/project-orchestrator ~/.claude/skills/project-orchestrator
-mkdir -p ~/.claude/commands && cp ~/.claude/skills/project-orchestrator/commands/*.md ~/.claude/commands/
+mkdir -p ~/.claude/commands && cp ~/.claude/skills/project-orchestrator/commands/* ~/.claude/commands/
 # Reiniciá Claude Code
 ```
-
-### Mantener los comandos sincronizados (automático)
-
-`commands/` es lo que versiona la skill; `~/.claude/commands/` es lo único que Claude Code
-lee. Son **dos copias**: actualizar la skill con `git pull` no propaga nada por sí solo, y
-el síntoma de ese desfase —un comando que "no existe"— no dice nada sobre la causa, así que
-se busca en el PATH o en el frontmatter en vez de en la copia que faltó.
-
-Activá la sincronización automática una sola vez por clon:
-
-```bash
-git -C ~/.claude/skills/project-orchestrator config core.hooksPath hooks
-```
-
-Desde ahí, los hooks de `hooks/` corren `scripts/sync-commands.ps1` después de cada
-`pull`, `merge`, `checkout`, `rebase` **o `commit`** (editar un comando y confirmarlo
-directo en el working tree, sin pasar por `pull`, es el caso más común al desarrollar la
-propia skill, y quedaba sin cubrir), y dejan `~/.claude/commands/` al día —incluida la
-variante opencode, **pero solo si `~/.config/opencode/commands` ya existe**, para no mezclar
-variantes. El script no borra nada: sobrescribe lo que viene de la skill y respeta cualquier
-comando propio que ya vivieras en el destino. Es idempotente; podés correrlo a mano cuando
-edites un comando sin pasar por git:
-
-```bash
-pwsh ~/.claude/skills/project-orchestrator/scripts/sync-commands.ps1
-```
-
-Un comando **nuevo** solo aparece tras **reiniciar Claude Code**: el registro se lee al arrancar.
-
-### Otro backend de agentes (opencode)
-
-Los comandos existen en **dos variantes** porque el procedimiento es agnóstico de
-proveedor pero los mecanismos de activación no lo son: `commands/*.md` habla de plugins y
-`.claude/settings.json`; `commands/opencode/*.md` habla de skills en `.agents/skills/` y
-MCP en `.opencode/opencode.json`. **No las mezcles**: copiar la variante de Claude Code
-sobre la de opencode rompe las rutas de activación.
-
-```bash
-mkdir -p ~/.config/opencode/commands
-cp ~/.claude/skills/project-orchestrator/commands/opencode/*.md ~/.config/opencode/commands/
-```
-
-Lo que cambia entre variantes es solo el backend (plugins vs skills/MCP, y el frontmatter
-propio de cada host). Las fases, las compuertas y la ley de cero suposiciones son idénticas:
-al mejorar el procedimiento hay que portar el cambio a **ambas**.
 
 ## Uso
 

@@ -169,15 +169,20 @@ foreach ($r in $aplicables) {
     $viola = $false
     switch ($tipo) {
         'grep_prohibido' {
-            if ($patron -and $textoPropuesto -match $patron) { $viola = $true }
+            # -cmatch (sensible a mayusculas): los patrones de estas reglas usan
+            # clases [A-Z]/[a-z] para distinguir snake_case de camelCase; -match
+            # es insensible a mayusculas por defecto en PowerShell y pliega esas
+            # clases a [A-Za-z], generando falsos positivos en cualquier
+            # identificador de 2+ letras (bug detectado 2026-09-25).
+            if ($patron -and $textoPropuesto -cmatch $patron) { $viola = $true }
         }
         'grep_requerido' {
             $extra = if ($s.PSObject.Properties['requiere_ademas']) {
                 [string]$s.requiere_ademas
             } else { '' }
             if ($patron -and $extra -and
-                $textoPropuesto -match $patron -and
-                $textoResultante -notmatch $extra) { $viola = $true }
+                $textoPropuesto -cmatch $patron -and
+                $textoResultante -cnotmatch $extra) { $viola = $true }
         }
         default {
             # test_requerido y recordatorio: no bloquean la escritura.

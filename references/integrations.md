@@ -5,10 +5,7 @@ comunicación con servicios externos —almacenamiento como S3, colaboración co
 Miro o Drive, transferencia como FTP/SFTP, y APIs de terceros en general— sea
 segura, resiliente y no tumbe el sistema cuando el tercero falla. También cubres el
 manejo seguro de archivos subidos por usuarios. Lee `evidence-protocol.md` antes de
-empezar. Aplica el método `behavioral-journey-tracing.md` — obligatorio (patrones
-frecuentes en este dominio: **C** atomicidad distribuida DB↔S3/tercero↔cola, **D**
-failure-path: qué queda huérfano, duplicado o perdido si el commit falla tras el efecto
-externo).
+empezar.
 
 ## Conocimiento fijo (no se negocia)
 
@@ -53,63 +50,9 @@ Con criterio OWASP (File Upload Cheat Sheet):
   (es trivial de falsificar). Allow-list de extensiones del negocio.
 - **Renombra** con un valor generado por la app (UUID); nunca uses el nombre del
   usuario. Cuidado con dobles extensiones y null bytes.
-- **La extensión final del archivo guardado también debe derivarse del MIME verificado
-  por contenido, no del nombre original del cliente.** Validar el contenido con
-  `getMimeType()` (o equivalente) y luego tomar la extensión de `pathinfo($nombreOriginal,
-  PATHINFO_EXTENSION)` dejan una brecha: un archivo con contenido válido (p. ej. un JPEG
-  polyglot) guardado con una extensión peligrosa del lado del cliente (`.html`, `.svg`)
-  puede ejecutarse como XSS almacenado si el bucket/CDN sirve por extensión. Verificar:
-  ```bash
-  grep -rn "getClientOriginalName().*PATHINFO_EXTENSION\|pathinfo(.*getClientOriginalName" app/
-  ```
-  Remediación: mapear la extensión desde el MIME ya validado (`['image/jpeg' => 'jpg', ...]`),
-  nunca desde el nombre que envía el cliente.
 - **Almacena fuera del webroot** (idealmente en el servicio de objetos), con
   límites de tamaño máximo y mínimo, y sin permiso de ejecución.
 - Escanea cuando aplique; valida ZIPs antes de descomprimir (anti zip-bomb).
-
-### Política de negocio del manejo de archivos (no se negocia definirla)
-
-Lo anterior es el criterio de **seguridad**, innegociable. Pero cada carga de
-archivos tiene además parámetros de **negocio** que varían por proyecto y módulo, y
-que nunca se asumen ni se copian de otro proyecto sin verificar — se **investigan y
-se preguntan** (mismo criterio que «Estándar del proyecto o pregunta directa» en
-`frontend.md`):
-
-- **Parametrizable o fijo.** Decidir explícitamente si el límite/regla es
-  configurable en runtime (por tenant, por tipo de documento, editable desde un
-  panel de administración) o una constante fija en código/config. No dejar esto
-  implícito: una constante que debería ser parametrizable obliga a un despliegue
-  por cada cambio de negocio; un parámetro innecesario es complejidad sin uso.
-- **Cantidad mínima y máxima** de archivos permitidos por carga (¿es válido enviar
-  cero archivos?, ¿hay tope duro o un soft-limit con confirmación del usuario?).
-- **Extensiones permitidas**, siempre como **allow-list** explícita (nunca
-  deny-list), y declarar si varía por tipo de documento o módulo del mismo
-  proyecto.
-- **Peso máximo y peso mínimo permitido** por archivo (y, si aplica, acumulado por
-  carga completa). Un mínimo en 0 puede dejar pasar archivos vacíos o truncados sin
-  que nadie lo note.
-- **Proveedor o servidor de carga** (local, S3, GCS, Azure Blob, Drive, FTP/SFTP
-  propio…), con la razón de la elección (costo, ya en uso en el proyecto, requisito
-  contractual del cliente) y sus credenciales/mínimo privilegio ya resueltos según
-  la sección de proveedores de este mismo documento.
-
-**Si el proyecto ya tiene un estándar detectable** (código, `CLAUDE.md`, ADR), se
-usa como propuesta a confirmar, con su evidencia `ruta:línea`. **Si no lo tiene**, no
-se inventa ni se asume un valor "razonable": se **pregunta a la persona usuaria** cuál
-se va a implementar para cada punto de la lista, y la respuesta queda registrada
-como estándar del proyecto de ahí en adelante. Para investigar antes de preguntar
-—cómo lo resuelven otros proyectos propios, qué dice la doc oficial vigente del
-proveedor, qué recomienda la buena práctica del lenguaje/framework— usa el comando
-`/research-file-handling` (ver `learner.md` y `COMMANDS.md`), que ejecuta esa
-investigación en tres frentes antes de cerrar la entrevista.
-
-**Una vez decidido, distila el `senal` en el mismo momento**, no después de que un
-archivo se cuele fuera del límite acordado (p. ej. `grep_requerido` sobre la regla de
-validación de tamaño/extensión del FormRequest o middleware que la aplica). Es una
-decisión de negocio recién fijada con patrón de detección conocido de antemano: no
-hace falta esperar a que la viole nadie. Ver `regression-ledger.md`, «Distilación
-proactiva vs. reactiva».
 
 ## Canales de comunicación (push/FCM, APNs, email, SMS, in-app)
 
@@ -146,66 +89,6 @@ evalúa: ¿maneja fallos del proveedor?, ¿reintenta con backoff+jitter o martil
 ¿tiene timeouts?, ¿es idempotente donde debe?, ¿dónde están las credenciales?,
 ¿qué privilegios usa? Cada credencial hardcodeada o integración sin timeout es un
 [OBSERVADO] de riesgo alto. Informa con el formato del protocolo.
-
-### Checks específicos de HTTP / APIs externas (aprendidos en campo)
-
-- **Laravel HTTP client sin `->throw()` → éxito falso (REG-108).** `Http::get()`/`post()`
-  devuelven un `Response` para cualquier código HTTP, incluido 5xx. Sin `->throw()`, un
-  error del proveedor entra en el branch de fallo del service method pero no lanza
-  excepción — el job/batch caller no ve ningún `\Throwable`, lo marca como éxito y el
-  `JobExecution` queda en `'success'`. Verificar: todo método de service que llama a
-  `Http::` y es invocado desde un job o batch — ¿propaga el error como excepción, o
-  retorna `void`/`null` silenciosamente ante un 5xx? La corrección es `->throw()` en la
-  cadena HTTP o lanzar explícitamente cuando `!$response->successful()`.
-
-- **Reintento sobre unidad diferente a la fallida.** En jobs que procesan un rango
-  (fechas, páginas, entidades) y comparten estado mutable entre iteraciones, retroceder
-  a una unidad anterior en el reintento no repite el trabajo fallido — re-ejecuta datos
-  de una unidad ya procesada y sobreescrita (tablas temporales truncadas, cursores
-  consumidos). El reintento debe siempre apuntar a la MISMA unidad fallida, con
-  idempotencia garantizada. Verificar: todo loop de integración que hace reintento en
-  caso de fallo del proveedor — ¿la unidad reintentada es la misma que falló?
-
-- **Renovación forzada de token disparada por un fallo de negocio, no por un 401 (rama
-  job-execution 2026-08-26).** Forzar `getToken(true)`/invalidar el token cacheado como reacción
-  a un error de datos (p. ej. "zona/sector no encontrado") ataca la causa equivocada: ese error
-  casi siempre es un catálogo desactualizado, no un token revocado. Descarta un token válido y
-  añade un round-trip de auth por cada valor distinto. Verificar: todo `getToken(true)` /
-  refresh de credencial — ¿lo dispara un `401`/`403` tipado del cliente HTTP, o un `null`/"no
-  encontrado" del dominio? Evidencia: `app/Services/Mobilia/SyncMobilia/SyncMobiliaJwtPropertyService.php:294,:319`.
-
-- **`continue` que descarta registros en un loop de sync sin contador ni traza (rama
-  job-execution 2026-08-26).** Filtrar registros del proveedor (`continue`) sin contar cuántos
-  ni loguear el criterio pierde datos en silencio; peor si el filtro se apoya en un literal
-  externo (`strcasecmp($status,'Disponible')`) que el proveedor puede cambiar. El descarte puede
-  ser intencional; la falta de traza no. Verificar: todo `continue` en `foreach ($items)` de un
-  servicio de sync — ¿hay contador de descartes + `Log::` con el desglose? Evidencia:
-  `app/Services/Mobilia/SyncMobilia/SyncMobiliaJwtPropertyService.php:242`. Ledger: REG-117.
-
-### Checklist ejecutable de transporte (FTP/TLS) — cierra el hueco de "preferir SFTP" sin verificación
-
-El conocimiento fijo de este brief ya decía "preferir SFTP frente a FTP plano", pero sin
-comando ni criterio de fallo no se ejecutaba (Cyber Neo CN-008: `config/filesystems.php`
-tenía `'ssl' => true` **comentado** en el disco FTP del proveedor MLS, sin que ninguna
-corrida previa lo señalara).
-
-```bash
-grep -n "'driver' => 'ftp'" -A 8 config/filesystems.php
-```
-
-Por cada disco `ftp` encontrado, verificar en las líneas siguientes:
-- Si no existe la clave `'ssl'`, o existe comentada, o vale `false`: el tráfico —incluidas
-  las credenciales del proveedor— cruza la red en texto plano. `HIGH`, `CWE-319`.
-- Si existe `'ssl' => env('FTP_SSL', true)` (o equivalente forzado a `true`): PASS.
-- Si el proveedor no soporta FTPS (confirmar con el proveedor antes de escalar a SFTP como
-  requisito contractual), documentar el riesgo aceptado explícitamente en el hallazgo — no
-  basta con dejarlo sin mención.
-
-Remediación mínima sin cambiar de protocolo:
-```php
-'ssl' => (bool) env('FTP_SSL', true),
-'timeout' => 30,
-```
 
 ## En modo APLICACIÓN
 

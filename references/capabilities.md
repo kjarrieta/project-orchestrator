@@ -48,8 +48,6 @@ usa.
 | Tarea de la corrida | Capacidad | Tipo | Quién la usa |
 |---|---|---|---|
 | Auditar/diseñar/migrar base de datos, seed de datos | plugin `claude-db` (skills: audit, migrate, seed, explain, design, checklist) | plugin por proyecto | agente de BD: **delega en el plugin**, no rehace la auditoría |
-| Lint de seguridad de una migración antes del deploy | plugin `claude-db` (skill `migrate` / `db-migration-safety`) | plugin por proyecto | agente Production/DevOps: **delega**, no rehace el análisis de lock/reversa |
-| Prueba de carga real (no runner mono-conexión) | plugin `playwright` / harness k6·Artillery·Gatling | plugin + externo | agente Performance (declara [HUECO] si no hay harness) |
 | Citar doc oficial de la versión exacta (protocolo de evidencia) | plugin `context7` | plugin por proyecto | cualquier agente que deba anclar un RECOMENDADO |
 | Proyecto Laravel | plugin `laravel-boost` | plugin por proyecto | Arquitecto, BD, APIs |
 | Proyecto Expo / React Native | plugin `expo` | plugin por proyecto | Arquitecto, Frontend |
@@ -62,6 +60,13 @@ usa.
 | Flujo TDD estricto / planes | plugin `superpowers` | plugin por proyecto | solo si la persona lo pide |
 | Configuración inicial del proyecto | comando `/setup-project` | comando global | director (Fase 0) |
 | Plugins nuevos instalados sin auditar / mapa desactualizado | comando `/sync-capabilities` | comando global | director: audita el plugin y fusiona este mapa sin perder lo existente |
+| Diseño de arquitectura (nuevo proyecto o brownfield) antes de implementar | plugin `the-architect` (comandos: architect, architect-brownfield, architect-quick, architect-next, architect-audit, architect-refresh; agentes: blueprint-writer, blueprint-validator, stack-researcher) | plugin por proyecto | Arquitecto: activa en Fase 0 si el pedido arranca sin arquitectura definida; no sustituye a project-orchestrator — lo complementa antes |
+| Seguridad automática en ediciones/commits/push | plugin `security-guidance` (hooks automáticos en PostToolUse, Stop, SubagentStop) | **global** (ya activado en ~/.claude/settings.json) | todos los agentes se benefician sin activación extra; IMPLICACIÓN: ejecuta Python en múltiples eventos — no desactivar por proyecto |
+| Checkpoint y handoff de estado entre sesiones | plugin `remember` (skill /remember, hooks de sesión) | **global** (ya activado en ~/.claude/settings.json) | director y subagentes: invocar antes de saturar contexto (P-CHECKPOINT-01); el plugin gestiona now.md, diarios y archive.md en .remember/ del proyecto |
+| Auditoría y optimización SEO de proyectos web | plugin `claude-seo-ai` (20+ skills: audit, score, fix, geo, seo-orchestrator + 5 agentes especializados) | plugin por proyecto | agente de Frontend/QA en proyectos web con objetivos SEO; IMPLICACIÓN: hook PreToolUse (guard-write.mjs) activo al encenderse |
+| Recomendar automatizaciones Claude Code para un proyecto | plugin `claude-code-setup` (skill claude-automation-recommender) | plugin por proyecto | director en Fase 0: solo lectura, recomienda hooks/skills/MCPs; activar en setup inicial |
+| Mejorar/auditar el CLAUDE.md del proyecto | plugin `claude-md-management` (skill claude-md-improver, comando revise-claude-md) | plugin por proyecto | director al abrir un proyecto sin CLAUDE.md o con uno desactualizado |
+| Proyectos Python con framework Atomic Agents | plugin `atomic-agents` (skills de scaffolding, subagentes explorer y reviewer) | **global** (ya activado en ~/.claude/settings.json) | agente de APIs/Backend en proyectos que usan la librería Python atomic-agents |
 
 Si el entorno de la persona difiere (otros plugins, otros nombres), el inventario del
 paso 1 manda: este mapa es la guía, no la verdad — verifica contra lo instalado.

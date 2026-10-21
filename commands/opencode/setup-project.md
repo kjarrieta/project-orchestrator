@@ -54,7 +54,15 @@ al final.
 ## Paso 3 — Generar la configuración
 
 1. Si la skill `project-orchestrator` (u otra global de `~/.agents/skills/`) aplica a
-   este proyecto, cópiala a `.agents/skills/` del proyecto (activación por proyecto).
+   este proyecto y `.agents/skills/<skill>/` no existe todavía en el proyecto, cópiala con
+   una copia directa de directorio — **nunca comprimir/descomprimir** (no uses
+   `Compress-Archive`/`Expand-Archive`; ese flujo es solo para `/pack-skill`, que
+   distribuye entre equipos, no para activar localmente):
+   ```powershell
+   New-Item -ItemType Directory -Force ".agents\skills\project-orchestrator" | Out-Null
+   Copy-Item "$HOME\.agents\skills\project-orchestrator\*" ".agents\skills\project-orchestrator\" -Recurse -Force
+   ```
+   (bash/Git Bash equivalente: `mkdir -p .agents/skills/project-orchestrator && cp -r ~/.agents/skills/project-orchestrator/. .agents/skills/project-orchestrator/`)
 2. Si ya existe `.opencode/opencode.json`, léelo y FUSIONA (no sobrescribas claves
    existentes; solo agrega/actualiza los bloques `mcp` de los servidores que el stack
    justifica).

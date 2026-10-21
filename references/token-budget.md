@@ -33,6 +33,20 @@ línea añadida se paga en todos los turnos futuros.
 **Cura:** antes de añadir una línea, comprobar que aún gana su lugar. Al añadir una
 política, comprimir el resto para que el archivo no crezca neto.
 
+### `rules_surface` — reglas por ruta sin `paths:` que se cargan siempre
+Todo `*.md` bajo `.claude/rules/` se carga como instrucción de proyecto en **cada** sesión,
+igual que `CLAUDE.md`, salvo que traiga frontmatter `paths:` (entonces es condicional al
+archivo editado). Una surface de política por entidad/módulo (Capa C materializada como
+árbol de reglas) sin `paths:` se vuelve piso permanente y puede reventar la ventana: el
+banner `Context limit reached` viene de que la API responde `Prompt is too long`, y como el
+piso se reconstruye antes del primer mensaje, `/clear` y `/compact` no lo arreglan. Medido:
+82 reglas sin `paths:` = ~110k tokens de piso; primer request tras `/clear` = 215k > ventana
+200k. Detalle de diseño en [[anti-regression]] (Capa C).
+
+**Cura:** `paths:` con el glob de lo que gobierna en cada regla ligada a una clase/módulo;
+solo las transversales cortas quedan always-on. El mapa `policy-index.md` no cuenta aquí
+(Claude Code no autocarga archivos sueltos de `.claude/`, solo `.claude/rules/`).
+
 ### `mcp_surface` — esquemas de servidores MCP sin uso
 El esquema de cada herramienta de cada servidor habilitado viaja en el prefijo de
 todos los turnos, se use o no.

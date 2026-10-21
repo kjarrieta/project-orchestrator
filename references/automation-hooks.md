@@ -13,13 +13,6 @@ Un repositorio con un `.claude/settings.json` malicioso ejecutaría sus hooks en
 máquina. Trata la configuración de hooks como código: revísala en PR, y a cada
 subagente dale el mínimo de herramientas que necesita.
 
-## Tres cosas se automatizan aquí
-
-1. **Documentación** tras editar código (`PostToolUse`) — refresca la doc del módulo.
-2. **Aprendiz** al cerrar sesión (`SessionEnd`) — destila y promueve regresiones.
-3. **Guard anti-regresión** antes de escribir (`PreToolUse`) — bloquea firmas duras del
-   registro de regresiones (Capa C, complementa la Capa A en CI).
-
 ## Los subagentes (dónde viven los agentes de esta skill)
 
 Cada agente se define como un archivo Markdown con frontmatter YAML en
@@ -109,86 +102,6 @@ Si prefieres que un modelo decida si hubo algo que valga la pena persistir antes
 gastar la corrida, usa un manejador `type: "prompt"` en el evento `Stop` que
 responda si conviene lanzar al aprendiz.
 
-### Guard anti-regresión antes de escribir → `PreToolUse`
-
-Capa C de la defensa anti-regresión (`anti-regression.md`). A diferencia de
-`PostToolUse`, `PreToolUse` corre **antes** de que la edición ocurra y **puede
-bloquearla** (exit code 2 o `permissionDecision: "deny"`). Cablea un manejador sobre
-`Edit|Write` que lea por stdin el JSON del evento (ruta + contenido/`new_string`
-propuesto), consulte las entradas del `regression-ledger.json` cuyo `alcance_rutas` casa
-con la ruta editada, y evalúe su `senal`:
-
-**El script existe y vive en la skill**, no hay que escribirlo por proyecto:
-`scripts/anti-regression-guard.ps1` (PowerShell 5.1+, funciona en Windows y con `pwsh`
-en Linux/macOS). Lo que se cablea por proyecto es el hook:
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "pwsh -NoProfile -File \"$HOME/.claude/skills/project-orchestrator/scripts/anti-regression-guard.ps1\"",
-            "timeout": 60
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-El guard **no lee las políticas directamente**: lee `.orchestrator/guard-rules.json`, que
-produce `scripts/compile-guard-rules.ps1` fusionando las cuatro fuentes (registro de
-regresiones, corpus de empresa, memoria de lenguaje/global, `policy-index`). Si ese
-archivo no existe, el guard sale en silencio: un proyecto que aún no corrió la skill no
-queda bloqueado.
-
-**Solo lo que tiene firma es exigible.** Una política en prosa no puede bloquear nada. El
-corpus y las memorias de lenguaje declaran su firma en un bloque cercado ```` ```senal ````
-bajo el encabezado de la política:
-
-````markdown
-### EMP-APIS-03 — Toda respuesta de error usa el envelope estándar
-
-```senal
-{
-  "tipo": "grep_requerido",
-  "alcance_rutas": ["app/Http/Controllers/**/*.php"],
-  "patron": "response\\(\\)->json\\(",
-  "requiere_ademas": "ApiResponse::|ErrorEnvelope",
-  "gate": "BLOCKING",
-  "correccion": "Usa ApiResponse::error(); no construyas el JSON a mano."
-}
-```
-````
-
-Lo que no lo declara aparece en `sin_firma[]` del `guard-rules.json`: es el inventario
-explícito de lo que seguirá cayendo en auditoría humana. Ese número se presenta en la
-compuerta; un hueco medido es deuda declarada, un hueco no medido es la sorpresa de la
-auditoría de rama.
-
-`anti-regression-guard.ps1`:
-- `grep_prohibido` que casa el patrón → **bloquea** (exit 2) con el ID de la entrada, el
-  invariante y la corrección esperada.
-- `grep_requerido` cuyo `patron` casa pero falta `requiere_ademas` → **bloquea**.
-- Cualquier entrada del dominio/ruta tocado → **inyecta** al contexto los invariantes
-  relevantes como recordatorio (aunque no bloquee).
-
-Es **la primera red, no la última**: atrapa la violación antes de que el archivo exista,
-que es cuando corregirla cuesta una vez y no tres. La **Capa A** (linter de políticas + CI
-en el propio repo) sigue siendo la garantía de que ningún autor —humano u otra
-herramienta— mergee una regresión; lo que el guard elimina es el ciclo
-*ejecutar → corregir → auditar → volver a corregir* dentro de una misma sesión.
-
-El bloqueo explica el invariante y cómo cumplirlo. La persona puede levantar el guard para
-IDs concretos con `ORCH_GUARD_BYPASS`, y queda registrado en
-`.orchestrator/guard-bypass.log` con fecha, ruta y regla: **nunca en silencio**. El agente
-que recibe un bloqueo no rodea el guard ni lo reescribe — corrige el código o escala.
-
 ### Eventos útiles (referencia rápida)
 
 `PreToolUse` (antes de una herramienta; puede bloquear con exit code 2 o
@@ -204,28 +117,3 @@ automáticos (Documentación, Aprendiz) generan y **proponen**; los cambios que 
 código o políticas siguen pasando por la compuerta humana del orquestador. Un hook
 que auto-aplica cambios sin revisión es justo el antipatrón que esta skill evita
 (ver los guardarraíles en `evidence-protocol.md`).
-
-## Política de proyecto: el upstream de una rama siempre apunta a sí misma en el remoto
-
-Cuando el director (o un agente en modo APLICACIÓN) crea, renombra o rebasa una rama de
-trabajo, el tracking remoto (`git branch -vv`, columna `[origin/X: ...]`) debe nombrar
-**exactamente esa misma rama** en el remoto — nunca `dev`, `main`, ni el nombre anterior
-de la propia rama tras un rename.
-
-**Por qué se rompe fácil:** `git checkout -b <rama> origin/dev` dexa el tracking apuntando
-a `origin/dev` (la rama base), no a la rama nueva; `git branch -m <nuevo-nombre>` (rename)
-conserva el tracking apuntando al nombre viejo de la rama en el remoto. Ninguno de los dos
-casos falla ni avisa — solo se nota corriendo `git branch -vv` explícitamente.
-
-**Verificación obligatoria:** después de cualquier `checkout -b`, `branch -m` o
-`rebase --onto` sobre una rama de trabajo del orquestador, correr `git branch -vv` y
-confirmar que el corchete de tracking coincide con la rama actual. Si no coincide,
-`git push -u origin <rama-actual>` lo corrige en un solo paso (crea o actualiza la rama
-remota y fija el tracking a la vez) — no hace falta un `--unset-upstream` previo salvo que
-se quiera dejar la rama sin tracking momentáneamente para revisión.
-
-**Procedencia:** proyecto un proyecto cliente, 2026-09-16/17 (sesión
-`aprendizaje2`) — dos veces en la misma sesión el tracking quedó apuntando a una rama
-distinta de la actual (una vez tras `checkout -b ... origin/dev`, otra tras un
-`branch -m`); ambas se detectaron con `git branch -vv` y se corrigieron con
-`git push -u origin <rama-actual>`.

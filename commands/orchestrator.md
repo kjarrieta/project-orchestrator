@@ -1,5 +1,5 @@
 ---
-description: Ejecuta el Orquestador de Proyecto (equipo de agentes senior) — flujo completo o una fase concreta
+description: Ejecuta el Orquestador de Proyecto (12 agentes senior) — flujo completo o una fase concreta
 argument-hint: "[auditar|aplicar|nuevo|verificar|estado|setup|cerrar] [alcance opcional]"
 ---
 
@@ -13,28 +13,20 @@ Argumentos: $ARGUMENTS
 ## Despacho por modo (primera palabra de los argumentos)
 
 - **(vacío)** — Flujo completo: bootstrap si falta → Fase R → 0 → 1 (auditoría
-  paralela) → 2 → 2.5 (Cross/Meta-Audit del Red Team) → **detente en la Fase 3
-  (compuerta), emitiendo primero el Production Gate GO/NO-GO** y presenta el plan. Jamás
+  paralela) → 2 → **detente en la Fase 3 (compuerta)** y presenta el plan. Jamás
   continúes a aplicación sin aprobación explícita.
-- **auditar [alcance]** — Solo Fases R–3 (incluye 2.5 y el Production Gate). Si hay
-  alcance (p. ej. "auditar módulo de facturación"), acótalo en la ficha y selecciona solo
-  los agentes que ese alcance justifica.
-- **aplicar [run_id opcional]** — Requiere un `10-plan-consolidado.md` con plan aprobado
-  en compuerta (root, o `.orchestrator/runs/<run_id>/` si hay más de una planeación
-  pendiente — ver regla de versionado de la Fase 2 en `SKILL.md`). Si no existe o no fue
-  aprobado, detente y dilo. Si hay más de un plan pendiente de compuerta y no se indicó
-  `run_id`, detente y pide cuál aplicar — nunca asumas el del root por defecto. Ejecuta
-  Fases 4–5 sobre rama dedicada, commits atómicos.
+- **auditar [alcance]** — Solo Fases R–3. Si hay alcance (p. ej. "auditar módulo de
+  facturación"), acótalo en la ficha y selecciona solo los agentes que ese alcance
+  justifica.
+- **aplicar** — Requiere `.orchestrator/10-plan-consolidado.md` con plan aprobado en
+  compuerta. Si no existe o no fue aprobado, detente y dilo. Ejecuta Fases 4–5 sobre
+  rama dedicada, commits atómicos.
 - **nuevo** — Proyecto greenfield: Fase R → entrevista de arquitecto senior (rama A de
-  la Fase 0) → propuesta de stack → **`/distill-guard` obligatorio** (destila el
-  conocimiento de la skill aplicable al stack elegido, antes de escribir código) →
-  entrevista de diseño del Frontend.
+  la Fase 0) → propuesta de stack → entrevista de diseño del Frontend.
 - **verificar** — Solo Fase 5: QA y Seguridad contra lo último aplicado en
   `.orchestrator/apply/`, usando los `<agente>-cambios.json` como base de diff.
 - **estado** — No lances agentes: lee `.orchestrator/` (ficha, plan, trace, runs) y
-  resume en qué fase quedó la última corrida, huecos abiertos y qué sigue. Lista TODOS
-  los planes con compuerta pendiente que encuentre (root + cualquier `runs/<run_id>/` sin
-  resolver), no solo el más reciente — dos planeaciones pueden estar abiertas a la vez.
+  resume en qué fase quedó la última corrida, huecos abiertos y qué sigue.
 - **setup** — Solo bootstrap (`references/setup.md`): genera subagentes, propone hooks
   y capacidades (`/setup-project`), sin iniciar corrida.
 - **cerrar** — Cierre de sesión de trabajo: dispara Documentación (merge documentado)
