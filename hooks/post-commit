@@ -1,0 +1,5 @@
+#!/bin/sh
+# Un commit directo en el working tree (editar y confirmar sin pasar por pull/checkout)
+# tambien deja commands/ desfasado del host, y ningun otro hook de este directorio lo
+# cubre. Ver scripts/sync-commands.ps1.
+exec "$(dirname "$0")/_sync-commands.sh"

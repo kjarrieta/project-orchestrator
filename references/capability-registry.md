@@ -10,10 +10,20 @@ roster puede crecer sin que la lógica de orquestación cambie.
 > agentes** del equipo. Un agente puede, además, delegar en una capacidad del entorno
 > (p. ej. BD delega en el plugin `claude-db`).
 
+> **Método obligatorio de auditoría — Behavioral Journey Tracing.** Toda capacidad de
+> auditoría (Núcleo, Condicional o Meta) aplica el método definido en
+> `references/behavioral-journey-tracing.md` cuando corre en Fase 1: derivar el conjunto
+> de journeys del diff, trazarlos por sus boundaries y emitir `JOURNEYS TRACED` +
+> `COVERAGE` como parte de su evidencia. **No es una capacidad separada.** Un journey no
+> recorrido completo ⇒ `UNVERIFIED` (no `PASS`) — trigger nuevo sobre la escala de
+> confianza ya establecida en `evidence-protocol.md`. La biblioteca de patrones
+> históricos que justifican el método vive en `references/cross-layer-seams.md`
+> (evidencia, no ejecución).
+
 ## Por qué capacidades y no "N agentes"
 
 No debe importar cuántos agentes existen en el catálogo. Debe importar qué capacidades
-requiere la tarea. Con 14 agentes hoy o 50 mañana, el orquestador pide una capacidad y
+requiere la tarea. Con el roster de hoy o con el triple mañana, el orquestador pide una capacidad y
 el registro resuelve quién la provee. Esto elimina el anti-patrón de "doce agentes" como
 concepto central: el número de agentes es un detalle de implementación, no una promesa
 de la skill.
@@ -139,6 +149,28 @@ ineficiencia con evidencia real (no micro-optimización especulativa).
 | Capacidad | Agente que la provee | Brief / sección | Se activa cuando |
 |---|---|---|---|
 | `reuse-simplification-audit` (duplicación de lógica de negocio entre archivos, constantes/listas repetidas, funciones casi-idénticas, condicionales que un early-return simplifica, recomputación evitable en bucles, N+1 sustituible por una sola consulta) | Revisor de Convenciones | `conventions-reviewer.md`, "Auditoría de reutilización, simplificación y eficiencia (DRY)" | prácticamente toda corrida no trivial en modo AUDIT o REFACTOR; obligatoria si el pedido menciona DRY, duplicación, "que quede escalable" o reutilización |
+
+## Adenda 2026-09-24 — Integridad: capas, ciclos, encarpetado y drift de comentarios
+
+Aprendida de la petición explícita de un "agente de integridad". Al mapearla contra el
+roster existente y contra la Regla final ("preferimos extender a crear"), las 12
+responsabilidades se distribuyen en cuatro capacidades nuevas sobre agentes ya presentes.
+No se crea agente nuevo — la superficie global no crece.
+
+| Capacidad | Agente que la provee | Brief / sección | Se activa cuando |
+|---|---|---|---|
+| `layer-boundary-audit` (sentido de dependencias, puntos de entrada respetados, DTOs entre capas, fuga del ORM al contrato de API) | Arquitecto | `architect.md`, "Integración de capas y fronteras arquitectónicas" | toda corrida no trivial que toque más de una capa; obligatoria en modo AUDIT si el proyecto declaró convención de capas |
+| `cyclic-dependency-audit` (ciclos de módulo/namespace, ciclos entre dominios, ciclos vía eventos/DI) | Arquitecto | `architect.md`, "Dependencias circulares" | toda corrida no trivial en modo AUDIT o REFACTOR; obligatoria si el pedido menciona "que quede escalable", desacoplamiento, o si el arranque de la app falla con `Class not found` intermitente |
+| `folder-coherence-audit` (carpeta ↔ capa, namespace ↔ ruta, mirroring de tests, mezcla de dominios en carpeta técnica) | Revisor de Convenciones | `conventions-reviewer.md`, "Encarpetado congruente" | prácticamente toda corrida no trivial en modo AUDIT o REFACTOR |
+| `comment-drift-audit` (deprecados, redundantes, repetitivos, filtración interna: URLs a docs no versionados, consecutivos de auditoría, IDs sin proyecto, nombres de personas, credenciales aparentes) | Revisor de Convenciones | `conventions-reviewer.md`, "Auditoría de comentarios (comment drift)" | prácticamente toda corrida no trivial en modo AUDIT o REFACTOR; obligatoria si el pedido menciona limpieza, documentación o "que quede compartible" |
+
+Las responsabilidades restantes que el usuario enumeró **ya estaban cubiertas** y no
+requieren capacidad nueva: aplicación de políticas → `compliance` (obligatorio y
+último); código muerto → `dead-code-audit`; N+1 → `performance`; migraciones →
+`devops`/`migration-safety`; concurrencia/transacciones/race conditions/errores
+silenciados → `robustness`; logs ruido/silenciados → `observability`/`sre`; SOLID/Clean
+Code → `architect` y `conventions`. El mapeo completo está trazado en la corrida donde
+se creó esta adenda.
 
 ## Regla final
 

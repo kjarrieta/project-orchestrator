@@ -8,7 +8,20 @@ argument-hint: "<ruta del documento o carpeta> [--dominio <dominio>]"
 Carga documentación normativa entregada por la empresa al **corpus de políticas** que el
 agente de Cumplimiento Corporativo consulta en la Fase 6. Lee primero
 `~/.claude/skills/project-orchestrator/references/policy-compliance.md`: define el esquema
-de entrada, los niveles de exigencia y cómo se usa cada campo.
+de entrada, los niveles de exigencia y cómo se usa cada campo. Lee también
+`references/behavioral-journey-tracing.md` (los 11 patrones A–K).
+
+> **Clasificar cada política ingerida contra A–K.** Toda entrada normativa que este
+> comando persista en `memory/company-policies/*.md` lleva un campo `pattern:
+> A|B|C|D|E|F|G|H|I|J|K|—`. Cuando la norma corporativa cubre una clase de defecto que ya
+> tiene patrón (típico: normas de trazabilidad → E; de segregación de funciones → F;
+> de idempotencia → G; de máquinas de estado regulatorias → H; de valores vacíos u
+> opcionales en formularios regulatorios → K), enlázalo — el auditor que aplique el
+> patrón en Fase 1 ve automáticamente la exigencia normativa correspondiente y el
+> veredicto se cruza con Cumplimiento sin re-derivar el mapeo. Si la norma cubre algo
+> genuinamente nuevo, `pattern: —` y se propone patrón L/M/… al
+> aprendiz (nunca lo crees desde aquí: el protocolo se toca por compuerta humana). Esto
+> vale para toda ingesta, incluida la primera del corpus.
 
 Argumento (ruta del documento, carpeta, o `revisar` para auditar el corpus sin cargar
 nada): $ARGUMENTS
@@ -71,6 +84,34 @@ proyecto, y `source/` conserva los documentos íntegros para poder auditar la pr
    Notas de interpretación (opcional, claramente separadas del texto literal).
    ```
 
+   **Si `Verificable como` no es `[HUECO]`, destila la firma en el mismo paso.** Una norma
+   verificable que se queda en prosa no bloquea nada: se descubre en la auditoría de rama,
+   cuando corregirla cuesta el triple. Añade bajo la entrada un bloque ```` ```senal ````
+   con el contrato que el guard de escritura evalúa (esquema en
+   `references/regression-ledger.md`, convención en `references/automation-hooks.md`):
+
+   ````markdown
+   ```senal
+   {
+     "tipo": "grep_requerido",
+     "alcance_rutas": ["app/Http/Controllers/**/*.php"],
+     "patron": "response\\(\\)->json\\(",
+     "requiere_ademas": "ApiResponse::|ErrorEnvelope",
+     "gate": "BLOCKING",
+     "correccion": "Usa ApiResponse::error(); no construyas el JSON a mano."
+   }
+   ```
+   ````
+
+   Reglas de la firma, sin excepción:
+   - **`gate: BLOCKING` solo para `Nivel: OBLIGATORIA`.** Una `RECOMENDADA` que bloquea
+     convierte una preferencia en un muro y termina con el guard apagado.
+   - **No inventes la regex para "cubrir" la norma.** Si no sabes qué firma la detecta sin
+     falsos positivos, deja `Verificable como: [HUECO]` y que salga en `sin_firma`. Un hueco
+     declarado es honesto; una firma ruidosa hace que se ignore el guard entero.
+   - **La firma no reemplaza el texto literal.** Es una proyección operativa de la norma,
+     no la norma. Si divergen, manda el texto.
+
    **El texto de la norma va literal.** Parafrasear una política es alterarla. Tu redacción
    solo aparece bajo «Notas de interpretación» y marcada como tal.
 
@@ -103,6 +144,15 @@ proyecto, y `source/` conserva los documentos íntegros para poder auditar la pr
    git -C ~/.claude/project-orchestrator/memory commit -m "policies: <qué se cargó>"
    git -C ~/.claude/project-orchestrator/memory push
    ```
+
+9. **Propaga a los proyectos: `/guard-sync --all`.** Cargar una política **no la hace
+   exigible**. Hasta recompilar el contrato de cada proyecto, la norma nueva vive en el
+   corpus y no detiene ni una escritura: la Fase 6 la verá al cerrar, la auditoría de rama
+   la encontrará después, y la corrección costará el triple. Este paso **es parte de la
+   carga**, no una tarea posterior opcional.
+
+   Reporta cuántos proyectos se resincronizaron, cuántas firmas nuevas quedaron activas y
+   cuántas entradas siguen en `sin_firma`.
 
 ## Modo `revisar`
 

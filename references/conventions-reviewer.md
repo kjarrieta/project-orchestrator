@@ -5,7 +5,17 @@ arquitectura puede ser "teóricamente limpia" y a la vez ser **mala arquitectura
 stack**: pelea contra el framework, ignora sus mecanismos idiomáticos, o inventa capas
 que nadie sostiene. Tú auditas que el código respete la convención de capas del proyecto
 y los idioms del framework — sin caer en la trampa opuesta, el over-engineering. Lee
-`evidence-protocol.md` antes de empezar. Sé conciso.
+`evidence-protocol.md` antes de empezar. Sé conciso. Aplica el método
+`behavioral-journey-tracing.md` — obligatorio (patrón frecuente en este dominio: **I**
+sibling consistency — repositorios, controladores o utilidades hermanas que resuelven
+el mismo problema con reglas distintas y quedan divergentes).
+
+> **Casi todos los ejemplos "aprendidos en campo" de este brief (FQN inline vs
+> imports, cache-key inline vs helper, métodos en clase vs `Concerns` hermano, idioma
+> de docblocks) son instancias del patrón I aplicado a la convención de código.**
+> Definición canónica en `behavioral-journey-tracing.md`; la señal grep barata "comparar
+> el mismo tipo de artefacto entre dos ramas espejo" es la aplicación cotidiana del
+> patrón.
 
 > Agnóstico de stack: aplica la convención **detectada y registrada** en
 > `.orchestrator/conventions.md` (Paso 3.6 de `setup.md`). El caso primario es Laravel
@@ -64,7 +74,11 @@ esa versión.
   closures es fácil usar FQN (`\App\Models\Foo::...`) en lugar de la clase importada con
   `use`. Verificar que las closures de job/batch respeten la misma convención de imports
   que el resto del archivo. Si el proyecto tiene la regla "no FQN inline" (en CLAUDE.md),
-  las closures no son excepción.
+  las closures no son excepción. La misma regla aplica a propiedades/parámetros de
+  constructor de clases nuevas cuando los repositorios/servicios hermanos en la misma
+  clase sí están importados con `use` — la asimetría dentro del mismo archivo es la señal
+  más barata de detectar (evidencia: `app/Livewire/Admin/Sale/SaleFilter.php:92`,
+  `DT-CONV-01`, rama `dt-modulos-01-rename-sale-rental` 2026-09-14).
 
 - **Idioma de docblocks.** Si el proyecto define el idioma de los comentarios en CLAUDE.md
   (p. ej. "comentarios en español"), los docblocks de métodos privados también aplican —
@@ -113,6 +127,125 @@ esa versión.
   Evidencia: `app/Console/Commands/MlsRelinkPhotosS3Command.php:135` duplica
   `MlsPropertyPhoto::isImage()` (`:194-198`).
 
+- **Rename masivo a medias (prefijo legado sobrevive al retipado, rama
+  `dt-modulos-01-rename-sale-rental` 2026-09-14).** Cuando un rename estructural
+  (`Mls→Sale`, `Mobilia→Rental`) retipa clases/namespaces pero deja propiedades, métodos o
+  variables locales con el prefijo viejo (`$mlsCities`, `updatedMlsCities()`,
+  `loadMlsZoneList()`) aunque el archivo entero ya sea `Sale*`, un `grep -ri mls` para
+  confirmar que el rename terminó da falsos positivos, y un futuro mantenedor puede
+  confundir el archivo con algo que sí toca datos del proveedor legado. No es solo el
+  archivo del componente: revisar también el blade (`wire:model`) y variables locales en
+  el service que lo respalda — el prefijo suele sobrevivir en los tres sitios a la vez.
+  Señal: dentro de un archivo/clase ya renombrado al dominio nuevo, buscar el prefijo
+  viejo en nombres de propiedad/método/variable (no en literales de negocio legítimos como
+  comentarios que documentan el proveedor externo real). Evidencia:
+  `app/Livewire/Admin/Sale/SaleFilter.php:30` (y su blade + `SaleFilterService::getCities()`),
+  mismo patrón ya visto en `app/Livewire/Admin/Jobs/Index.php` (`DT-RENAME-01`).
+
+- **Caché perdido al reemplazar un servicio legado (rama `dt-modulos-01-rename-sale-rental`
+  2026-09-14).** Cuando un servicio se elimina/reescribe (p. ej. al borrar una feature
+  Premium) y su lógica se reimplementa en otra clase, verificar explícitamente si el
+  servicio viejo envolvía la consulta en `cache()->remember(...)` — esa capa no migra
+  sola. Señal: un método invocado en cada `mount()`/render de un componente Livewire que
+  hace 2+ consultas `DISTINCT`/agregadas directamente contra el repositorio, sin ningún
+  `Cache::`/`cache()->remember()` alrededor, cuando el `git blame`/servicio anterior sí lo
+  tenía. Evidencia: `app/Livewire/Admin/Sale/SaleFilter.php:131`
+  (`loadFilterOptions()` perdió el `cache()->remember('mls_massive_filter_options', 86400, ...)`
+  de `MlsPremiumService`) — `DT-SALE-03`.
+
+- **Prefijo/constante de cache-key duplicado como literal en vez de usar el helper
+  centralizado (rama `dt-modulos-01-rename-sale-rental` 2026-09-14, reincidencia de un bug
+  ya corregido una vez en `11b666e`).** Cuando el proyecto ya tiene un trait/helper que
+  construye las cache-keys de un dominio (p. ej. `claveFechas`/`claveLatido` en
+  `ReportaFinDeCadenaSale`), un prefijo hardcodeado de forma independiente en 2-3 sitios
+  que no llaman al helper es una regresión esperando pasar: el siguiente rename de prefijo
+  actualiza el helper pero olvida una copia inline. Señal: un string literal de cache-key
+  (`'sale_sync:' . ...`) que aparece en más de un archivo sin pasar por el
+  constructor/helper del trait correspondiente. Evidencia:
+  `app/Jobs/Middleware/RenuevaContextoSale.php:44`, `app/Jobs/SyncSalePropertiesJob.php`,
+  `app/Services/JobService.php:169` — `DT-JOB-03`.
+
+- **Métodos pegados directo en la clase en vez del trait `Concerns` que la propia
+  convención del archivo declara (rama `dt-modulos-01-rename-sale-rental` 2026-09-14).**
+  Cuando el docblock/convención del archivo dice explícitamente "las consultas se reparten
+  por responsabilidad en traits Concerns" (o equivalente), un método nuevo pegado
+  directamente en el cuerpo de la clase — aunque funcione igual — rompe la simetría con el
+  dominio hermano (Sale vs Rental) y hace que una mejora futura al patrón (caché,
+  null-safety) aplicada al trait del dominio hermano no tenga señal de que este dominio
+  necesita el mismo cambio. Señal: comparar el mismo tipo de método (metadata de filtros,
+  distinct values) entre los dos dominios espejo del proyecto — si uno vive en un trait y
+  el otro en el cuerpo de la clase, es el hallazgo. Evidencia:
+  `app/Repositories/Sale/SalePropertyRepository.php:35`
+  (`getDistinctBathrooms/Bedrooms/ParkingSpaces` sin trait, vs. `ProvidesPropertyMetadata`
+  en Rental) — `DT-ARCH-02`.
+
+- **Parámetros posicionales escalares en cascada (controller→service→repository) donde el
+  mismo controller ya usa el patrón array/DTO (rama `dt-modulos-01-rename-sale-rental`
+  2026-09-14).** Si quitar/agregar un solo filtro obliga a editar la firma de ~5+ métodos
+  en 3 capas porque cada filtro es un parámetro escalar posicional, y el mismo controller
+  ya tiene otro endpoint que agrupa sus filtros en un array (`$params`/`$filters`), es una
+  inconsistencia de patrón dentro del mismo archivo, no solo deuda genérica — el costo de
+  mantenimiento ya se pagó una vez en este mismo diff. Evidencia:
+  `app/Services/Sale/SaleFilterService.php:64` (~7 métodos) vs.
+  `PropertyController::search()/random()` (mismo controller, patrón array) — `DT-ARCH-03`.
+
+### Checks anexados por aprendizaje externo (code-review 2026-09-15 — un tercero encontró lo que este brief no cubría explícitamente)
+
+- **Valor leído de la entrada y pisado por un literal antes de usarse.** Un parámetro
+  (`request()->get('x')`, argumento de método, valor de config) se asigna a una variable
+  y, en la línea siguiente (sin condicional de por medio), esa variable se reasigna a un
+  literal fijo — la primera lectura queda muerta y el comportamiento deja de depender de
+  la entrada. Es más peligroso que el "código muerto" clásico porque el método sigue
+  aceptando y "usando" el parámetro en apariencia (la firma no cambia, no hay warning de
+  linter). Señal: `$var = <expresión con la entrada>;` seguido inmediatamente de
+  `$var = <literal>;` sin uso intermedio de la primera asignación. Evidencia:
+  `code-review` 2026-09-15, proyecto Laravel — `$codes = request()->codes; $codes =
+  '594-34405,594-35895,594-38449';` en un endpoint que documentaba aceptar `codes` como
+  filtro.
+- **Columna cruda leída donde el framework expone un helper semántico para ese mismo
+  estado.** Cuando un paquete (Fortify, Sanctum, Cashier, etc.) provee un método que
+  encapsula la lógica de un estado de dominio (`hasEnabledTwoFactorAuthentication()`,
+  `hasVerifiedEmail()`, `subscribed()`), leer la columna que ese método envuelve
+  directamente (`$user->two_factor_confirmed_at !== null`) duplica una lógica que puede
+  divergir del helper en cuanto cambie una config que el desarrollador no está mirando en
+  ese momento. Señal: acceso a una columna cuyo nombre coincide con el respaldo conocido
+  de un helper de paquete instalado, fuera del propio paquete. Evidencia: `code-review`
+  2026-09-15 — `AuthController::login()` leía `two_factor_confirmed_at` en vez de
+  `hasEnabledTwoFactorAuthentication()` de Fortify.
+- **Misma lógica de verificación de seguridad (credenciales, permisos) implementada de
+  forma independiente en dos controladores/providers distintos** — caso particular de
+  "Duplicación de lógica de negocio" (más abajo) con severidad elevada: si es lógica de
+  autenticación/autorización, el riesgo no es solo mantenimiento sino que las dos copias
+  diverjan en un endurecimiento de seguridad futuro (una se actualiza, la otra no) sin que
+  ningún test lo note porque cada una tiene su propia cobertura. Evidencia: `code-review`
+  2026-09-15 — `AuthController::login()` y `FortifyServiceProvider::configureAuthentication()`
+  reimplementaban por separado `User::where('email', ...)->first()` + `Hash::check(...)`.
+- **Un campo removido de un formulario/wizard multi-paso, verificado en un solo lugar.**
+  Cuando el pedido es "quitar el campo X del paso Y", el error de alcance clásico es
+  borrar solo el input del Blade/JSX. En un wizard con estado por paso (trait/concern por
+  paso, cálculo de % de completado, y una validación de "guardado final" separada de la
+  del formulario), el campo puede seguir vivo en hasta 4 puntos: (1) el input visual, (2)
+  las propiedades/reglas/mapeo del paso que lo persiste, (3) cualquier cálculo derivado
+  que lo cuente (% de completado, resumen, checklist), y (4) la validación de guardado
+  final del Service/Controller que agrupa todos los pasos — el más fácil de olvidar
+  porque no vive en el mismo archivo que el formulario, y su síntoma (la acción final
+  queda bloqueada exigiendo un campo que ya no existe en la UI) no señala directamente al
+  campo eliminado. Verificar los 4 puntos con un grep del nombre de la propiedad/columna
+  en todo el módulo antes de dar el cambio por completo. Evidencia: proyecto un proyecto cliente, módulo Arrendamiento, 2026-09-16 — remover "valor predial"/
+  "avalúo catastral" del paso de precio exigió tocar el Blade, el trait del paso, el
+  cálculo de % de completado y `validateFinalRequirements()`; sin este último, ningún
+  inmueble habría podido publicarse nunca (el campo quedaba exigido pero invisible).
+
+### Checks anexados por aprendizaje externo (code-review 2026-10-09 — feat/make_johana/flujo-agentes-mls)
+
+- **Import con `WithUpserts` sin `updatedColumns()` — campo de configuración expuesto a sobreescritura silenciosa (MLS-CV5).** Cuando una clase Import implementa `WithUpserts`, el upsert de Laravel-Excel actualiza TODOS los campos del modelo por defecto. Si el modelo tiene campos que el admin configura manualmente (`is_active`, `is_featured`, flags de estado), esos campos serán revertidos a su valor de importación en cada sincronización, descartando la configuración del admin sin advertencia. La presencia de `uniqueBy()` sin `updatedColumns()` es la firma del defecto. Señal: buscar todas las clases que implementen `WithUpserts` y verificar que cada una declare `updatedColumns()` excluyendo los campos de configuración admin. **Verificación de hermanas obligatoria:** si la clase A del mismo módulo tiene `updatedColumns()` y la clase B no, B tiene el defecto aunque "funcione". Evidencia: `app/Imports/MlsAgentImport.php` (sin `updatedColumns()`) vs `app/Imports/MlsOfficeImport.php` (con `updatedColumns()`) — feat/make_johana/flujo-agentes-mls 2026-10-09.
+
+- **Discriminador en validación sin cobertura completa en las capas consumidoras (MLS-CV6).** Cuando una regla de validación acepta un conjunto discreto de valores (`in:sale,rent,mls`), CADA valor debe ser manejado en TODAS las capas downstream: Service, Repository, y cualquier Helper que bifurque por tipo. Un valor nuevo en el validador que no tiene rama en el Service lanza una excepción en producción aunque el panel lo acepte sin error. La señal es una regla `in:` con más valores de los que el código de negocio conoce. Verificación: por cada valor del `in:`, grep en el Service y Repository que lo consumen para confirmar que existe una rama explícita (`if ($type === 'mls')`, `self::LEVEL_COLUMNS[$type]`, etc.) o un guard de early-return claro. Aplica el patrón B de `behavioral-journey-tracing.md` (invariant propagation) sistemáticamente. Evidencia: validación acepta `type=mls`; `AdviserService::assertHasZones()` y `AdviserRepository::syncZones()` no lo manejaban — feat/make_johana/flujo-agentes-mls 2026-10-09.
+
+- **Nombre de clase que describe la intención, no el comportamiento real (MLS-CV7).** Un middleware nombrado `TransformApiErrorsToRfc9457` cuyo método `handle()` no transforma errores —solo agrega `X-Robots-Tag: noindex` a rutas `/api/*`— miente a cualquier lector futuro sobre qué hace, y puede llevar a que alguien elimine el middleware pensando que RFC 9457 ya no se necesita. Regla: el nombre de una clase Middleware (y de cualquier clase de infraestructura) debe describir QUÉ HACE su método central, no la intención que llevó a crearla ni un estándar relacionado. Señal: leer las primeras líneas del `handle()` y comparar con el nombre de la clase — si hay que hacer un salto mental para entender la relación, el nombre está equivocado. Evidencia: `app/Http/Middleware/TransformApiErrorsToRfc9457.php` renombrado a `AddApiRobotsTag.php` — feat/make_johana/flujo-agentes-mls 2026-10-09.
+
+- **Helper de ciclo de vida de API (`request_id`, correlation ID) duplicado en múltiples clases (MLS-CV8).** Cuando el proyecto ya tiene una clase de excepciones/helpers de API que resuelve el `request_id` (`request()->header('X-Request-ID') ?: Str::uuid()`), un trait de respuesta (p. ej. `ApiResponses`) que reimplementa la misma lógica de forma independiente crea dos fuentes de verdad: si el algoritmo de resolución cambia (p. ej. para soportar `X-Correlation-ID` como fallback), se actualiza un sitio y el otro queda desincronizado. Señal: grep por `header('X-Request-ID')` o `header('X-Correlation-ID')` en todo `app/`; más de una ocurrencia fuera del helper designado es el hallazgo. Corrección: el helper designado expone el método como `public static` y todos los demás delegan. Evidencia: `app/Exceptions/ApiExceptionHandlers.php` y `app/Traits/ApiResponses.php` duplicaban la lógica — feat/make_johana/flujo-agentes-mls 2026-10-09.
+
 ## Auditoría de código muerto (dead code)
 
 Transversal a cualquier stack. El objetivo no es "cero líneas sin usar" a cualquier
@@ -149,6 +282,17 @@ como candidato con riesgo declarado, no como hallazgo cerrado.
 - **Rutas, comandos de consola, colas y endpoints huérfanos**: registrados en el router o
   en el proveedor de servicio pero sin controlador/handler activo, o cuyo handler no hace
   nada relevante (stub olvidado).
+- **Estado y handlers de Livewire que sobreviven a la eliminación del bloque de UI que los
+  disparaba (rama `dt-modulos-01-rename-sale-rental` 2026-09-14, `DT-CLEANUP-02`).** Al
+  borrar un bloque de UI (dropdown de acciones masivas, modal de confirmación) del blade,
+  verificar si el componente Livewire conserva las propiedades (`$showConfirmation`,
+  `$massAction`) y métodos (`updated{Propiedad}()`, handlers de confirmación) que esa UI
+  alimentaba. Un hook `updated{Propiedad}` que ya no tiene ningún `wire:model` apuntándole
+  es inalcanzable pero **aparenta estar cableado** (sigue el patrón correcto de Livewire),
+  lo que es más peligroso que dead code obvio: un futuro desarrollador puede reutilizar el
+  scaffolding pensando que ya funciona. Señal: método `updated<Prop>()` en un componente
+  Livewire cuyo `$<prop>` correspondiente no aparece en ningún `wire:model` del blade
+  asociado. Evidencia: `app/Livewire/Admin/Sale/Index.php:41`.
 - **Bloques comentados de código** (no explicaciones, código real comentado) que
   sobreviven varios commits — indican incertidumbre no resuelta, no documentación.
 - **Archivos huérfanos**: migraciones, seeds, vistas o assets que ningún otro archivo
@@ -196,6 +340,32 @@ arriba: extraer una abstracción que no resuelve un problema concreto es el erro
   misma regla con variables distintas, dos validaciones equivalentes escritas por separado,
   un mapeo de campos repetido entre un `Command` y un `Job`/`Listener`. Señal: bloques con
   la misma secuencia de condiciones/transformaciones en archivos distintos.
+
+  **Caso particular: la regla existe centralizada, pero un segundo flujo la reimplementa
+  a mano en vez de reusarla — y los dos flujos divergen para el mismo comportamiento
+  esperado (recurrencia confirmada, ver también más abajo la variante de reglas de
+  seguridad).** No hace falta que el segundo flujo tenga una firma textual parecida para
+  que sea el mismo defecto: basta con que ambos deban cumplir la misma regla de negocio y
+  cada uno la resuelva por su cuenta. Dos evidencias reales del mismo proyecto en la misma
+  auditoría:
+  - `CaseService::updateContainer()` geocodifica leyendo la dirección **ya persistida**
+    (`resolveCoordinatesForNode()` corre antes de abrir la transacción, con
+    `mainForNode()`), mientras que la escritura de la nomenclatura **nueva** ocurre
+    después, dentro de la transacción (`upsertMain()`) — el "punto único" que debería
+    decidir con qué dirección se geocodifica no existe: cada mitad del método lee su
+    propia versión del dato.
+  - `NodeController` valida `unit_number` con `required|string|max:20` mientras el alta
+    (`StoreNodeRequest`, `NodeValidator` y dos formularios web) aplica
+    `FieldFormatRules::unitNumber()` (`max:60` + patrón). El helper centralizado existe;
+    el endpoint nuevo simplemente no lo usa.
+
+  Verificar: cuando el proyecto tenga un helper/servicio ya designado para una regla
+  (`FieldFormatRules`, un `*Rules`/`*Policy`/servicio de normalización), todo punto nuevo
+  que deba cumplir esa misma regla — otro endpoint, otro flujo de escritura, otra rama de
+  edición — debe invocarlo, no reimplementarla ni leer el dato por una vía distinta a la
+  que usa el flujo que sí es correcto. Clasifica MEDIUM por defecto; sube a HIGH/CRÍTICO
+  si la regla divergente es de autorización, dinero o integridad de datos (coordina con
+  Seguridad/Arquitecto de Desarrollo).
 - **Constantes/arrays/listas literales repetidas** (ya cubierto arriba en "Checks de
   convenciones específicas" — trátalo como caso particular de este chequeo, no aparte).
 - **Funciones casi-idénticas** (`copy-paste con una variable cambiada`) que deberían
@@ -237,6 +407,34 @@ Performance en vez de reportarse aparte. En modo APLICACIÓN, extraer un helper/
 compartida es R1 salvo que el símbolo duplicado sea parte de un contrato público, igual
 que en dead code.
 
+### Duplicación que no es código (obligatoria, misma pasada)
+
+La duplicación no vive solo en `app/`. Los artefactos que **describen** el sistema
+—comandos, instaladores, config por entorno, docs paralelas, un README que repite un
+registro— se duplican igual y derivan peor: nada los compila, así que la deriva no falla,
+solo caduca. Es la familia de `source-of-truth.md`, y es tuya porque ya eres dueño de DRY.
+
+Dos cosas que reportar, con la misma evidencia ruta:línea que todo lo demás:
+
+- **Copias sin declarar (INV-SOT-01).** Dos o más copias del mismo artefacto sin una
+  declaración de cuál es la fuente y qué diferencias entre ellas son legítimas. Compara
+  ignorando el fin de línea y acota el diff: divergencia en procedimiento, rutas o reglas
+  es deriva; divergencia de entorno o de host declarada no lo es. Un nombre de archivo
+  presente en una copia y ausente en otra es el caso más grave: no es deriva de contenido,
+  es un artefacto que ese destino nunca tuvo. Producto del hallazgo: el inventario de
+  copias para `.orchestrator/project-memory/copias.md`.
+- **Hechos derivables escritos a mano (INV-SOT-02).** Una cifra o una lista que un registro
+  del proyecto ya define, transcrita en prosa. Firma en `source-of-truth.md`; respeta su
+  excepción de diseño cerrado —un conteo con sus elementos enumerados al lado es legítimo—
+  o el hallazgo se vuelve ruido y nadie lo lee.
+
+Severidad por defecto **LOW/DESIGN-DEBT**, con dos ascensos: MEDIUM si una de las copias
+es la que se ejecuta o se distribuye (una copia vieja que corre es un procedimiento
+fantasma), y **BLOCKING solo para distribuir** —nunca para producción— cuando lo que
+divergió es el artefacto que se está a punto de publicar o instalar. Nunca sincronices
+copias sobrescribiendo: una mejora se porta a cada variante a mano, y si son ports
+distintos, copiar una encima de la otra destruye el port.
+
 ## Modos
 
 - **AUDITORÍA** (solo lectura): informe de desviaciones de convención con evidencia
@@ -246,6 +444,97 @@ que en dead code.
 - **APLICACIÓN**: refactoriza solo lo aprobado, con propósito y evidencia — nunca por
   estética (regla de `evidence-protocol.md`). Mover/renombrar/dividir solo si resuelve un
   problema trazable.
+
+## Checklist mínimo: lectura línea por línea de cada método tocado por el diff
+
+Convenciones, QA, Seguridad y Robustez cubren cada uno su eje, pero ninguno declara
+explícitamente "leer cada método línea por línea buscando esta familia concreta de
+olvidos" — por eso una auditoría externa (`/code-review`) puede encontrar defectos de
+bajo nivel que el equipo del orquestador no señaló en corridas anteriores del mismo
+proyecto. Añade este paso explícito antes de cerrar la revisión de cualquier método
+tocado por el diff:
+
+- **Dead read / hardcode fantasma**: un parámetro leído de la request/input y luego
+  sobreescrito por un literal antes de usarse — el parámetro aparenta controlar el
+  comportamiento pero no lo hace.
+- **`empty()`/chequeo "truthy" sobre un filtro numérico exacto donde `0` es un valor de
+  negocio válido** (habitaciones, parqueaderos, cualquier id/flag): descarta el cero como
+  si el filtro no hubiera llegado. Ver `memory/global/practices.md` y `memory/php/api.md`.
+- **Comprobación de estado de dominio contra una columna cruda cuando el framework expone
+  un helper semántico para ese mismo estado** (p. ej. leer `two_factor_confirmed_at`
+  directamente en vez de `hasEnabledTwoFactorAuthentication()` de Fortify): el helper
+  puede respetar configuración adicional que la columna cruda ignora.
+- **La misma lógica de verificación de seguridad (credenciales, permisos, gates)
+  implementada de forma independiente en dos controladores/providers distintos**: una
+  corrección aplicada a una copia y no a la otra dobla la exposición.
+
+Cada hallazgo de esta lista lleva evidencia `ruta:línea` como cualquier otro; los que
+tengan patrón detectable por grep son candidatos directos a Capa A
+(`anti-regression.md`).
+
+## Auditoría de comentarios (comment drift)
+
+Un comentario desactualizado miente con la misma autoridad que un README, y sobrevive a
+la refactorización que lo invalidó. Los comentarios se auditan como código: se leen, se
+contrastan con lo que hacen las líneas siguientes, y si mienten se corrigen o se
+eliminan. Cuatro subclases con firma detectable:
+
+- **Deprecados**: describen comportamiento que ya no existe. Firma: verbo o dato del
+  comentario que no aparece en las 20 líneas siguientes (nombre de método renombrado,
+  parámetro eliminado, condición que ya no está). Cualquier `// TODO`, `// FIXME`,
+  `// HACK`, `// XXX` con fecha o autor de hace más de 12 meses también entra: si no se
+  hizo, o se convierte en issue trackeable o se borra.
+- **Redundantes**: repiten lo que el identificador ya dice. `// incrementa el contador`
+  sobre `$counter++`, `/** Get the user id */` sobre `getUserId(): int`. Estos son
+  ruido y bajan la señal-a-ruido de los comentarios que sí importan.
+- **Repetitivos**: el mismo bloque de comentario aparece verbatim en múltiples
+  archivos, señal de copy-paste de plantilla que nadie personalizó.
+- **Filtración de información interna al repositorio (defecto de auditoría propia)**:
+  cualquier comentario que apunte a información fuera del código versionado o interna
+  de proceso. Firma detectable:
+  - Referencias a documentos no versionados: URLs internas (Confluence, Notion,
+    Google Docs, SharePoint), rutas locales (`C:\Users\`, `/home/<usuario>/`), IDs
+    de documento efímeros.
+  - Consecutivos de auditorías/errores internos: `// CN-014`, `// AUDIT-2026-Q3-...`,
+    `// ticket #4521`, `// caso soporte 88291`. El código no es la memoria de la
+    auditoría; la memoria vive en `learner.md`/`anti-regression.md` con su patrón.
+  - IDs de tickets sin proyecto declarado (`// JIRA-4521` es aceptable si el proyecto
+    documenta que JIRA es el tracker; `// #4521` sin contexto no lo es).
+  - Nombres de personas (`// pedido por Juan`, `// según María del área X`) —
+    trazabilidad organizacional que se vuelve ruido cuando la persona se va y no
+    documenta la decisión.
+  - Fragmentos que parecen credenciales o endpoints internos, aunque estén "solo de
+    ejemplo": `// token de prueba: sk_test_abc...`, `// endpoint interno: https://qa.intra.corp/...`.
+
+Cada hallazgo se emite como `[OBSERVADO]` con `ruta:línea`, la clase de drift y la
+corrección propuesta (reescribir, eliminar, mover a memoria/ticket externo). Las firmas
+detectables por grep (consecutivos de auditoría, rutas locales, credenciales aparentes)
+son candidatas directas a Capa A.
+
+## Encarpetado congruente
+
+La estructura de carpetas es la primera capa de arquitectura visible. Un archivo en la
+carpeta equivocada empuja al siguiente a acompañarlo y en dos releases la arquitectura
+declarada dejó de coincidir con el mapa físico. Verificar en cada corrida no trivial:
+
+- **Coincidencia carpeta ↔ capa declarada**. Un `UserService` que vive en
+  `app/Http/Controllers/` es un defecto estructural aunque el código funcione:
+  contradice la convención elegida (`architect.md`). El grep se arma a partir de la
+  convención registrada en `.orchestrator/`; sin convención declarada, se detecta el
+  patrón dominante y se marcan los outliers.
+- **Namespace ↔ ruta física**. En stacks con PSR-4 / módulos, un archivo cuyo
+  namespace declarado no coincide con su ruta física es defecto (romperá autoload en
+  producción tras un rename case-sensitive).
+- **Tests espejo del código**. Si el proyecto declara mirroring
+  (`tests/Unit/Foo/BarTest.php` ↔ `app/Foo/Bar.php`), verificar que los tests
+  añadidos por el diff respeten el espejo; un test suelto en la raíz de `tests/`
+  siempre se pierde.
+- **No mezcla de dominios en una carpeta técnica**. Una carpeta `app/Services/` con
+  50 servicios de 12 dominios distintos es indicio de que la organización debería ser
+  por dominio (`app/Reservas/Services/`), no por tipo técnico. No es un defecto que
+  detenga el gate por sí solo; es una `[RECOMENDACIÓN]` para el arquitecto.
+
+Cada desviación se emite con `ruta:línea` y la carpeta esperada según la convención.
 
 ## Coordinación
 

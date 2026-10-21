@@ -50,17 +50,6 @@ Con criterio OWASP (File Upload Cheat Sheet):
   (es trivial de falsificar). Allow-list de extensiones del negocio.
 - **Renombra** con un valor generado por la app (UUID); nunca uses el nombre del
   usuario. Cuidado con dobles extensiones y null bytes.
-- **La extensión final del archivo guardado también debe derivarse del MIME verificado
-  por contenido, no del nombre original del cliente.** Validar el contenido con
-  `getMimeType()` (o equivalente) y luego tomar la extensión de `pathinfo($nombreOriginal,
-  PATHINFO_EXTENSION)` dejan una brecha: un archivo con contenido válido (p. ej. un JPEG
-  polyglot) guardado con una extensión peligrosa del lado del cliente (`.html`, `.svg`)
-  puede ejecutarse como XSS almacenado si el bucket/CDN sirve por extensión. Verificar:
-  ```bash
-  grep -rn "getClientOriginalName().*PATHINFO_EXTENSION\|pathinfo(.*getClientOriginalName" app/
-  ```
-  Remediación: mapear la extensión desde el MIME ya validado (`['image/jpeg' => 'jpg', ...]`),
-  nunca desde el nombre que envía el cliente.
 - **Almacena fuera del webroot** (idealmente en el servicio de objetos), con
   límites de tamaño máximo y mínimo, y sin permiso de ejecución.
 - Escanea cuando aplique; valida ZIPs antes de descomprimir (anti zip-bomb).
@@ -100,66 +89,6 @@ evalúa: ¿maneja fallos del proveedor?, ¿reintenta con backoff+jitter o martil
 ¿tiene timeouts?, ¿es idempotente donde debe?, ¿dónde están las credenciales?,
 ¿qué privilegios usa? Cada credencial hardcodeada o integración sin timeout es un
 [OBSERVADO] de riesgo alto. Informa con el formato del protocolo.
-
-### Checks específicos de HTTP / APIs externas (aprendidos en campo)
-
-- **Laravel HTTP client sin `->throw()` → éxito falso (REG-108).** `Http::get()`/`post()`
-  devuelven un `Response` para cualquier código HTTP, incluido 5xx. Sin `->throw()`, un
-  error del proveedor entra en el branch de fallo del service method pero no lanza
-  excepción — el job/batch caller no ve ningún `\Throwable`, lo marca como éxito y el
-  `JobExecution` queda en `'success'`. Verificar: todo método de service que llama a
-  `Http::` y es invocado desde un job o batch — ¿propaga el error como excepción, o
-  retorna `void`/`null` silenciosamente ante un 5xx? La corrección es `->throw()` en la
-  cadena HTTP o lanzar explícitamente cuando `!$response->successful()`.
-
-- **Reintento sobre unidad diferente a la fallida.** En jobs que procesan un rango
-  (fechas, páginas, entidades) y comparten estado mutable entre iteraciones, retroceder
-  a una unidad anterior en el reintento no repite el trabajo fallido — re-ejecuta datos
-  de una unidad ya procesada y sobreescrita (tablas temporales truncadas, cursores
-  consumidos). El reintento debe siempre apuntar a la MISMA unidad fallida, con
-  idempotencia garantizada. Verificar: todo loop de integración que hace reintento en
-  caso de fallo del proveedor — ¿la unidad reintentada es la misma que falló?
-
-- **Renovación forzada de token disparada por un fallo de negocio, no por un 401 (rama
-  job-execution 2026-08-26).** Forzar `getToken(true)`/invalidar el token cacheado como reacción
-  a un error de datos (p. ej. "zona/sector no encontrado") ataca la causa equivocada: ese error
-  casi siempre es un catálogo desactualizado, no un token revocado. Descarta un token válido y
-  añade un round-trip de auth por cada valor distinto. Verificar: todo `getToken(true)` /
-  refresh de credencial — ¿lo dispara un `401`/`403` tipado del cliente HTTP, o un `null`/"no
-  encontrado" del dominio? Evidencia: `app/Services/Mobilia/SyncMobilia/SyncMobiliaJwtPropertyService.php:294,:319`.
-
-- **`continue` que descarta registros en un loop de sync sin contador ni traza (rama
-  job-execution 2026-08-26).** Filtrar registros del proveedor (`continue`) sin contar cuántos
-  ni loguear el criterio pierde datos en silencio; peor si el filtro se apoya en un literal
-  externo (`strcasecmp($status,'Disponible')`) que el proveedor puede cambiar. El descarte puede
-  ser intencional; la falta de traza no. Verificar: todo `continue` en `foreach ($items)` de un
-  servicio de sync — ¿hay contador de descartes + `Log::` con el desglose? Evidencia:
-  `app/Services/Mobilia/SyncMobilia/SyncMobiliaJwtPropertyService.php:242`. Ledger: REG-117.
-
-### Checklist ejecutable de transporte (FTP/TLS) — cierra el hueco de "preferir SFTP" sin verificación
-
-El conocimiento fijo de este brief ya decía "preferir SFTP frente a FTP plano", pero sin
-comando ni criterio de fallo no se ejecutaba (Cyber Neo CN-008: `config/filesystems.php`
-tenía `'ssl' => true` **comentado** en el disco FTP del proveedor MLS, sin que ninguna
-corrida previa lo señalara).
-
-```bash
-grep -n "'driver' => 'ftp'" -A 8 config/filesystems.php
-```
-
-Por cada disco `ftp` encontrado, verificar en las líneas siguientes:
-- Si no existe la clave `'ssl'`, o existe comentada, o vale `false`: el tráfico —incluidas
-  las credenciales del proveedor— cruza la red en texto plano. `HIGH`, `CWE-319`.
-- Si existe `'ssl' => env('FTP_SSL', true)` (o equivalente forzado a `true`): PASS.
-- Si el proveedor no soporta FTPS (confirmar con el proveedor antes de escalar a SFTP como
-  requisito contractual), documentar el riesgo aceptado explícitamente en el hallazgo — no
-  basta con dejarlo sin mención.
-
-Remediación mínima sin cambiar de protocolo:
-```php
-'ssl' => (bool) env('FTP_SSL', true),
-'timeout' => 30,
-```
 
 ## En modo APLICACIÓN
 

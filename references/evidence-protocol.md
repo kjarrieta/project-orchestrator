@@ -1,6 +1,6 @@
 # Protocolo de evidencia (léelo antes que tu brief)
 
-Este documento es la ley común de todos los agentes del equipo. Su propósito es simple y
+Este documento es la ley común de los doce agentes. Su propósito es simple y
 duro: **eliminar las suposiciones**. Un agente senior no es el que más opina, es
 el que respalda cada afirmación con evidencia y sabe decir "no lo sé todavía".
 
@@ -37,29 +37,9 @@ figura en el lockfile / manifiesto, no la última que exista):
 No cuentan como fuente: blogs, respuestas de foros, tutoriales, ni tu memoria.
 Pueden orientarte para *buscar*, pero la afirmación se ancla a la fuente oficial.
 
-Estas fuentes tienen **grados** (una jerarquía L0–L6: runtime/tests > doc de versión >
-RFC/estándar > repo/changelog > vendor > secundarias > comunidad). Cuando dos fuentes
-se contradicen, gana la de nivel más bajo; la comunidad (L6) jamás es canónica. El
-detalle por tipo de afirmación (seguridad exige L0–L2, etc.) está en
-`knowledge-system.md`.
-
 **Fija la versión primero.** Recomendar la sintaxis de una versión que el proyecto
 no usa es un error tan grave como inventar. Antes de citar, confirma qué versión
 corre este proyecto y busca la documentación de *esa* versión.
-
-## Alcance de exploración: nunca código de dependencias instaladas
-
-Ningún agente lee, referencia ni cita como evidencia el código dentro de `vendor/`
-(Composer), `node_modules/` (npm/yarn/pnpm), `.venv`/`site-packages/` (Python),
-`target/` (Maven/Gradle) ni cualquier carpeta equivalente de dependencias instaladas
-de otros gestores de paquetes. Es código de terceros, no del proyecto: una
-observación ahí nunca es un `OBSERVADO` válido sobre "este proyecto", y explorarlo
-desperdicia presupuesto de corrida en un árbol que puede ser órdenes de magnitud más
-grande que el código propio. Si necesitas saber cómo se comporta una librería,
-la fuente es su documentación oficial de la versión exacta (o su repo/changelog
-oficial), nunca el código vendorizado en el proyecto. Excluye estas rutas de
-cualquier `Glob`/`Grep` exploratorio desde el primer barrido (mapa único de la Fase
-0), no solo al filtrar resultados después.
 
 ## Conocimiento fijo vs. flexible
 
@@ -137,49 +117,6 @@ Reglas:
   sensor de autocomplacencia.
 - Precedencia: el `.json` es la fuente de verdad para **validar**; el `.md` es la
   narrativa para **consolidar**. Si difieren, manda el `.json` y el desajuste se anota.
-
-## Clasificación de hallazgos en tres ejes (Production Gate)
-
-Un hallazgo no se clasifica solo por severidad. Lleva **tres ejes independientes**, y el
-detalle del criterio de decisión vive en `production-gate.md` (léelo si tu salida
-alimenta el gate):
-
-- **Severidad:** `CRITICAL | HIGH | MEDIUM | LOW | INFO`.
-- **Gate:** `BLOCKING | NON-BLOCKING`.
-- **Confianza:** `CONFIRMED | LIKELY | UNVERIFIED | DESIGN-DEBT | OBSERVATION`.
-
-Dos reglas que aplican a todos:
-- **PASS requiere evidencia.** No marques `PASS` sin listar la evidencia (ruta:línea,
-  test, policy/lint). Sin evidencia ⇒ `UNVERIFIED`, nunca `PASS`.
-- Un HIGH/CRITICAL **CONFIRMED** de seguridad, integridad financiera, aislamiento de
-  tenant o concurrencia ⇒ `BLOCKING`. Y un boundary crítico **UNVERIFIED** ⇒
-  `BLOCKING-hasta-verificar`: la falta de prueba no lo baja a MEDIUM.
-
-Cuando un hallazgo es una regresión conocida o debe volverse invariante, enlázalo con su
-entrada del registro (`regression-ledger.md`) vía `ledger_ref`, y nombra el
-`test_required` que lo cierra.
-
-Por eso el bloque de hallazgos del `veredicto.json` se extiende:
-
-```json
-{
-  "id": "P1",
-  "titulo": "Acción Livewire mutadora sin authorize",
-  "dominio": "autorizacion",
-  "severity": "HIGH",
-  "gate": "BLOCKING",
-  "confidence": "CONFIRMED",
-  "hard_gate": "unauthorized_mutation",
-  "owasp": "API5:2023 BFLA",
-  "evidence": ["app/Livewire/Commission/Edit.php:84"],
-  "test_required": "CommissionAuthorizationTest::test_user_cannot_update_foreign_commission",
-  "ledger_ref": "REG-014",
-  "status": "OPEN"
-}
-```
-
-`hard_gate` es una clave de la lista de `production-gate.md` o `null`. Un `hard_gate`
-abierto es NO-GO, sin importar cuántos PASS haya.
 
 ## Formato de la bitácora de APLICACIÓN
 

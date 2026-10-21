@@ -52,11 +52,71 @@ Dos clases de entrada, y **solo** estas:
 2. **Invariante duro** — una regla que el sistema debe cumplir siempre y cuya violación
    es de las que bloquean producción (ver `production-gate.md`): aislamiento de tenant,
    autorización en el punto de mutación, dinero como decimal, inmutabilidad de snapshot,
-   transiciones de estado válidas, idempotencia de jobs, FK sin orfandad.
+   transiciones de estado válidas, idempotencia de jobs, FK sin orfandad. La autorización
+   en módulos CRUD y de cambio de estado (crear/consultar/editar/eliminar/activar/
+   suspender) es el caso de trabajo de esta clase — ver `security.md`, «Política de
+   módulos CRUD y de cambio de estado», y `setup.md` Paso 3.6b.
 
 No entra: preferencias de estilo, mejoras opinables, TODOs. Eso vive en políticas o en
 la memoria del Aprendiz, no aquí. El registro es corto a propósito: cada entrada cuesta
 una verificación en cada escritura.
+
+**El invariante duro nunca requirió una violación previa.** Es la clase que existe
+precisamente para lo contrario: reglas que el sistema debe cumplir desde la primera
+línea, no reglas que se ganaron el derecho a exigirse porque alguien ya las rompió.
+Si en la práctica solo se llena vía regresión confirmada, el registro se volvió
+reactivo por hábito, no por diseño — ver «Distilación proactiva» abajo.
+
+## Distilación proactiva vs. reactiva (dos vías, no una)
+
+Hay dos formas legítimas de que una entrada llegue al registro, y **la reactiva no es
+la única ni la que debería usarse por defecto**:
+
+- **Reactiva (el Aprendiz, al cerrar sesión).** Un hallazgo `CONFIRMED` de una auditoría
+  o un incidente se promueve a entrada. Nace *después* de que el código ya incumplió
+  la política. Es la red de seguridad para lo que nadie anticipó — no el mecanismo
+  principal de gobierno.
+- **Proactiva (cualquier agente, en el momento de fijar la política).** Cuando una
+  regla nueva —conocimiento fijo que se anexa a un agente (`references/*.md`), una
+  norma cargada por `/policy-update`, o una práctica traída por `/learn-from`— tiene
+  un **patrón de detección seguro y sin falsos positivos conocido de antemano** (por
+  la doc oficial del framework, por el propio texto de la norma, por cómo ese patrón
+  se ve típicamente en el lenguaje del proyecto), su `senal` se escribe **en ese mismo
+  momento**, con `alcance_rutas` **amplio** (el glob de todo el dominio: `**/*Request.php`,
+  `app/Livewire/**/*.php`), no acotado al archivo donde a alguien se le ocurrió mirar.
+  Un glob amplio protege también el archivo que todavía no existe — ese es el punto:
+  el guard corre en cada `Edit`/`Write`, así que una firma bien acotada bloquea la
+  **primera** vez que alguien escribe el patrón prohibido, no la segunda.
+
+  Requiere el mismo rigor que `/policy-update` ya exige en su paso 3: si no se conoce
+  un patrón que discrimine sin ruido, la entrada se queda `sin_firma` de forma
+  explícita — inventar una regex "para cubrir" produce falsos positivos que terminan
+  con el guard apagado, que es peor que no tener la regla. Un hueco declarado es
+  honesto; esperar a que ocurra la regresión "para tener evidencia" no lo es cuando el
+  patrón ya se conoce de antemano.
+
+**Regla operativa:** antes de dejar una política nueva solo como prosa en un
+`references/*.md` de la skill, pregúntate si ya se conoce un patrón seguro para
+detectarla. Si sí, distílala ahora (entrada de proyecto si es de negocio de un
+proyecto concreto; `company-policies`/memoria de lenguaje o global si aplica a todos)
+y corre `/guard-sync` para compilarla. Solo cuando el patrón todavía no se conoce con
+la seguridad que exige `senal` es correcto dejarla en prosa a la espera de que una
+corrida real aporte la evidencia que falta — y ahí sí, cuando el Aprendiz la vea
+confirmada, la promueve.
+
+**No es solo la política de hoy — es toda capa que aplique al stack del proyecto.**
+Universal de la skill, empresa (`company-policies`, filtrado por ámbito), lo
+agente-agnóstico de lenguaje, lo propio del lenguaje/framework en su versión exacta, y
+las librerías que el proyecto realmente usa (en cascada de dependencias: framework →
+librerías sobre él → lo que esas traen). `/distill-guard` barre las cinco capas de una
+sola vez contra el diagnóstico de la Fase 0, en dos fases que reflejan las Fases 1 y 2
+del orquestador aplicadas a política en vez de a hallazgos: **D1 — identificar** cómo
+está (o no está) implementada hoy cada política aplicable, con evidencia real (el
+vocabulario — nombres de campo, de archivo, de regla — varía de proyecto a proyecto
+aunque la política de origen sea la misma); **D2 — definir** el `senal` con ese
+vocabulario real y distilarlo. Es obligatorio dentro de la corrida inicial de todo
+proyecto nuevo (`/orchestrator nuevo`), justo tras fijar el stack y antes de la
+primera escritura de código de aplicación — ver `commands/distill-guard.md`.
 
 ## Esquema de una entrada (`regression-ledger.json`)
 
@@ -88,6 +148,15 @@ Notas del esquema:
   - `grep_requerido` — si aparece `patron`, entonces DEBE aparecer también
     `requiere_ademas` en el mismo archivo/cambio (p. ej. mutación ⇒ `authorize`).
   - `test_requerido` — el dominio no se da por bueno sin un test nombrado que lo pruebe.
+    Es la vía para invariantes reales que un grep no puede expresar porque exigen evaluar
+    **comportamiento**, no texto (aislamiento de tenant, autorización con el rol correcto,
+    un `select` que solo acepta ids reales, redondeo de dinero) — no confundir con
+    `sin_firma`: si el invariante es real y un test lo puede verificar, esta es la salida,
+    no la prosa sin más. El test mismo vive en `.orchestrator/guard-tests/<lenguaje>/`,
+    separado del suite propio del proyecto (ver `commands/distill-guard.md`, «Cuando el
+    patrón es un test, no una regex»), y se actualiza cuando el código o la política que
+    lo originó cambian — un test que sigue en verde por desalineación es peor que no
+    tenerlo.
 - **`alcance_rutas`** acota a qué archivos aplica la entrada, para no verificar de más.
 - **`test_regresion`** nombra la prueba que demuestra el invariante. Su ausencia es
   `UNVERIFIED`, no `PASS` (ver `production-gate.md`, "PASS requiere evidencia").

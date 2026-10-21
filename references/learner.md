@@ -46,11 +46,6 @@ antes de proponer cambios: actualizas lo que hay, no creas un sistema paralelo.
      políticas del proyecto (`CLAUDE.md`/reglas).
    - Si es un patrón de fallo recurrente → propón una prueba de regresión o un
      guardarraíl, y pásalo a QA y Seguridad.
-   - Si es una **regresión** (bug ya corregido) o un **invariante duro** de seguridad,
-     integridad de datos, aislamiento de tenant o concurrencia → **promuévelo al registro
-     de regresiones** (`regression-ledger.md`) con su señal de detección y su
-     `test_required`. Este es el paso que cierra el ciclo de raíz: sin él, la lección
-     vuelve a ser prosa que la próxima sesión ignora.
    - Si **generaliza más allá de este proyecto**, clasifícalo en el nivel correcto
      antes de promoverlo (ver `language-memory.md`):
      * **Lenguaje + versión** — idioms, footguns y prácticas del lenguaje/framework,
@@ -74,64 +69,6 @@ antes de proponer cambios: actualizas lo que hay, no creas un sistema paralelo.
    está prohibido: eso no es aprender, es corromper la memoria.
 5. Deja el registro en `.orchestrator/90-aprendizajes.md`: qué se aprendió, qué
    política/ADR/prueba/entrada-global propones, y su evidencia.
-
-## Pipeline de promoción (no promuevas a la brava)
-
-El riesgo del Aprendiz es **aprender demasiado**: convertir una decisión puntual de un
-proyecto en una regla global que contamina a todos los siguientes. Ninguna lección salta
-directo a memoria global. Pasa por esta tubería, y cualquier paso que falle la detiene:
-
-```
-Candidato          → una lección observada en la sesión (con evidencia)
-   ↓
-Deduplicar         → ¿ya existe una entrada que la cubre? Si sí, actualiza, no dupliques
-   ↓
-Chequeo de generalización → ¿es cierta fuera de este proyecto, o solo aquí?
-   ↓
-Chequeo de evidencia → ¿tiene fuente de nivel suficiente (knowledge-system.md, L0–L3)?
-   ↓
-Chequeo de alcance → clasifícala en el nivel correcto (abajo)
-   ↓
-Aprobación         → compuerta humana / política; nunca automática para memoria global
-   ↓
-Promover           → materializar en el nivel que le corresponde
-```
-
-### Clasifica el alcance antes de promover
-
-El error clásico es saltar de un caso particular a una ley universal. Distingue cinco
-niveles y promueve al **más restrictivo** que sea cierto:
-
-```
-PROJECT RULE     → "En ESTE proyecto no usamos DTOs"        → memoria de proyecto, NO sube
-TEAM RULE        → "Este equipo prefiere X convención"       → memoria de proyecto/equipo
-LANGUAGE RULE    → "En PHP 8.4, X es un footgun"             → memoria global por lenguaje+versión
-FRAMEWORK RULE   → "En Laravel 12, Y se hace con Z"          → memoria global por framework+versión
-GENERAL PRINCIPLE→ "Validar la entrada" (cierto en todo stack)→ memoria universal (practices.md)
-```
-
-Prueba de fuego: *"En este proyecto Laravel no usamos DTOs"* es una PROJECT RULE. Jamás
-se promueve como *"Laravel no debe usar DTOs"* (una FRAMEWORK RULE falsa). Una lección
-sube de nivel **solo** si es cierta en ese nivel con evidencia de la jerarquía de
-fuentes; ante la duda, se queda en el nivel más bajo. Una entrada global mala se replica
-a todos los proyectos futuros: el umbral para subir es alto por diseño.
-
-Detalle del almacén físico y la frontera proyecto↔global en `language-memory.md`; las
-clases de conocimiento y sus metadatos (procedencia, caducidad) en `knowledge-system.md`.
-
-## Garantía de regresión (Capa D — no negociable)
-
-> Toda lección con **firma de runtime** cierra con un **lint** (Capa A, política
-> ejecutable) o con un **test de regresión** (Capa D). Ninguna queda solo como prosa.
-
-No des por cerrada una lección de seguridad, integridad, tenant o concurrencia hasta que
-tenga su lint o su test:
-- Si la firma es **estática** (un patrón detectable en el código: `catch(\Throwable)`,
-  ORM en la vista, `->enum(` en migración) → materialízala como regla del linter de
-  políticas o test de arquitectura (Capa A), y baja el baseline al corregir.
-- Si **no es estática** (fuga cross-tenant, cálculo con decimales, transición de estado)
-  → materialízala como test de regresión y pásalo a QA/Seguridad como backlog de Fase 5.
-Detalle en `anti-regression.md`. Una lección sin lint ni test es una lección abierta.
 
 ## Límite importante
 

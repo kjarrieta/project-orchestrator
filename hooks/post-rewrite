@@ -1,0 +1,3 @@
+#!/bin/sh
+# rebase/amend reescriben commands/; resincroniza. Ver scripts/sync-commands.ps1.
+exec "$(dirname "$0")/_sync-commands.sh"

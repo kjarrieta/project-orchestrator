@@ -1,5 +1,5 @@
 ---
-description: Ejecuta el Orquestador de Proyecto (equipo de agentes senior) — flujo completo o una fase concreta
+description: Ejecuta el Orquestador de Proyecto (12 agentes senior) — flujo completo o una fase concreta
 argument-hint: "[auditar|aplicar|nuevo|verificar|estado|setup|cerrar] [alcance opcional]"
 ---
 
@@ -13,12 +13,11 @@ Argumentos: $ARGUMENTS
 ## Despacho por modo (primera palabra de los argumentos)
 
 - **(vacío)** — Flujo completo: bootstrap si falta → Fase R → 0 → 1 (auditoría
-  paralela) → 2 → 2.5 (Cross/Meta-Audit del Red Team) → **detente en la Fase 3
-  (compuerta), emitiendo primero el Production Gate GO/NO-GO** y presenta el plan. Jamás
+  paralela) → 2 → **detente en la Fase 3 (compuerta)** y presenta el plan. Jamás
   continúes a aplicación sin aprobación explícita.
-- **auditar [alcance]** — Solo Fases R–3 (incluye 2.5 y el Production Gate). Si hay
-  alcance (p. ej. "auditar módulo de facturación"), acótalo en la ficha y selecciona solo
-  los agentes que ese alcance justifica.
+- **auditar [alcance]** — Solo Fases R–3. Si hay alcance (p. ej. "auditar módulo de
+  facturación"), acótalo en la ficha y selecciona solo los agentes que ese alcance
+  justifica.
 - **aplicar** — Requiere `.orchestrator/10-plan-consolidado.md` con plan aprobado en
   compuerta. Si no existe o no fue aprobado, detente y dilo. Ejecuta Fases 4–5 sobre
   rama dedicada, commits atómicos.
