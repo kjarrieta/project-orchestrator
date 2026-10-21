@@ -1,0 +1,10 @@
+#!/bin/sh
+# Capa A de este repo (publico): nada de lo que se va a commitear puede nombrar
+# un cliente/proyecto. Ver hooks/_guard-client-names.sh y references/feedback.md.
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+diff_file=$(mktemp 2>/dev/null) || exit 0
+trap 'rm -f "$diff_file"' EXIT
+# hooks/ queda fuera del escaneo: ahi vive el propio dato (los tokens
+# bloqueados) como literal de implementacion, no como fuga de contenido.
+git diff --cached -U0 -- . ':(exclude)memory-snapshot' ':(exclude)hooks' > "$diff_file" 2>/dev/null
+"$root/hooks/_guard-client-names.sh" "$diff_file"

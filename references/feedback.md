@@ -27,6 +27,15 @@ valor es aprovechar lo disponible, no exigir que todo esté.
   versión/contexto aplicaba. Lo que no se puede fechar ni ubicar, se marca como dudoso.
 - **Nada sensible cruza fronteras**: no arrastres secretos, credenciales ni datos de un
   cliente hacia otro proyecto o hacia la memoria global. Solo patrones en abstracto.
+- **La memoria del orquestador es privada; este repo (`project-orchestrator`) es
+  público.** `~/.claude/project-orchestrator/memory/` vive en el repo separado
+  `project-orchestrator-memory` (privado) — ahí sí llevan procedencia con nombre de
+  proyecto/cliente. Los `references/*.md` y `commands/*.md` de **este** repo son
+  mecanismo genérico: nunca una línea "Procedencia/Evidencia: proyecto `<nombre>`" ni
+  ningún identificador de cliente. Un aprendizaje que trae esa procedencia se separa en
+  dos: el patrón abstracto (aquí) y la procedencia con nombre (solo en el repo privado).
+  Hay un pre-commit (`hooks/pre-commit`) que bloquea esto mecánicamente; no sustituye
+  la revisión, es la red para cuando se olvida.
 - **Reconciliación, no acumulación**: deduplica; si dos fuentes se contradicen, no
   metas ambas — marca el conflicto para resolver, prefiriendo lo confirmado contra
   código/doc oficial.

@@ -1,0 +1,5 @@
+#!/bin/sh
+# El mensaje de commit tambien es texto publico: no debe nombrar un
+# cliente/proyecto. Ver hooks/_guard-client-names.sh y references/feedback.md.
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+"$root/hooks/_guard-client-names.sh" "$1"

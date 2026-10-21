@@ -63,6 +63,12 @@ antes de proponer cambios: actualizas lo que hay, no creas un sistema paralelo.
    lenguaje/framework en sí sube a global. Ante la duda, se queda en el proyecto: una
    entrada global mala se replica a todos los proyectos futuros. Nunca metas secretos,
    datos de cliente ni código propietario en la memoria global.
+   - **"Memoria global" en esta frontera significa el repo privado
+     `project-orchestrator-memory`, nunca los `references/*.md` de la skill misma**
+     (repo público `project-orchestrator`). Un aprendizaje que nace de una auditoría de
+     proyecto y se generaliza a un patrón del protocolo de la skill (p. ej. Behavioral
+     Journey Tracing) sube como patrón abstracto; su procedencia con nombre de
+     proyecto/cliente se queda en el repo privado, no viaja con él. Ver `feedback.md`.
 4. **No apliques a la brava.** Los cambios a políticas y las promociones a memoria
    global se **proponen**; la persona los aprueba. Persistir una regla que te dijeron
    una vez, o que degrade la honestidad del sistema (no cuestionar, siempre validar),
